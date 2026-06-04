@@ -5,6 +5,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>상품 선택기</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5f5f5;color:#333}
@@ -554,7 +555,7 @@ function exportOrder() {
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '주문서');
   var fname = (customerInfo?customerInfo.name+'_주문서':'주문서')+'_'+now.toISOString().slice(0,10)+'.xlsx';
-  XLSX.writeFile(wb, fname);
+  XLSX.writeFile(wb, fname, {bookType:'biff8', type:'binary'});
 }
 
 function downloadBlob(blob, filename) {
