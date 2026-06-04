@@ -90,6 +90,11 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 .btn-add-opt{background:#2d6a9f;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap}
 .btn-add-opt:hover{background:#1e3a5f}
 .btn-add-opt:disabled{background:#ccc;cursor:not-allowed}
+.btn-add-opt.added{background:#27ae60;transform:scale(1.08);transition:all .15s}
+.btn-add-opt.added::after{content:' ✓';font-size:13px}
+@keyframes cartBounce{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.cart-bounce{animation:cartBounce .3s ease}
+
 
 .loading{text-align:center;padding:60px 20px;color:#888}
 .spin{border:3px solid #eee;border-top:3px solid #2d6a9f;border-radius:50%;width:36px;height:36px;animation:spin .8s linear infinite;margin:0 auto 12px}
@@ -389,7 +394,7 @@ function changeModalQty(idx, delta) {
   el.textContent=v;
 }
 
-function addOptToCart(name, idx) {
+function addOptToCart(btn, name, idx) {
   var g = groups.find(function(gg) { return gg.name===name; });
   if(!g)return;
   var o = g.options[idx];
@@ -406,6 +411,9 @@ function addOptToCart(name, idx) {
   document.getElementById('mqty_'+idx).textContent=1;
   if(exist>=0) cart[exist].qty+=qty;
   else cart.push({name:name,optName:o.optName,price:o.price,barcode:o.barcode,skuCode:o.skuCode,image:o.image||g.image,qty:qty});
+  if(btn){btn.classList.add('added');setTimeout(function(){btn.classList.remove('added');},600);}
+  var cartEl=document.getElementById('cartArea');
+  if(cartEl){cartEl.classList.add('cart-bounce');setTimeout(function(){cartEl.classList.remove('cart-bounce');},300);}
   updateCart();
 }
 
@@ -554,7 +562,7 @@ function exportOrder() {
   ];
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '주문서');
-  var fname = (customerInfo?customerInfo.name+'_주문서':'주문서')+'_'+now.toISOString().slice(0,10)+'.xlsx';
+  var fname = (customerInfo?customerInfo.name+'_주문서':'주문서')+'_'+now.toISOString().slice(0,10)+'.xls';
   XLSX.writeFile(wb, fname, {bookType:'biff8', type:'binary'});
 }
 
