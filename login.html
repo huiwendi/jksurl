@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>고객 로그인</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:linear-gradient(135deg,#1e3a5f,#2d6a9f);min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px}
+.login-wrap{background:#fff;border-radius:20px;padding:40px 30px;width:100%;max-width:400px;box-shadow:0 10px 50px rgba(0,0,0,.3);text-align:center}
+.login-wrap h2{font-size:22px;color:#1e3a5f;margin-bottom:6px}
+.login-wrap .sub{font-size:13px;color:#888;margin-bottom:24px}
+.pw-wrap{margin-bottom:16px;text-align:left}
+.pw-wrap label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:6px}
+.pw-wrap input{width:100%;padding:14px 16px;border:2px solid #ddd;border-radius:10px;font-size:15px;outline:none}
+.pw-wrap input:focus{border-color:#2d6a9f}
+.login-btn{width:100%;padding:14px;background:#2d6a9f;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px}
+.login-btn:hover{background:#1e3a5f}
+.login-btn:disabled{background:#aaa;cursor:not-allowed}
+.error{color:#e74c3c;font-size:12px;margin-top:10px;min-height:18px}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.shake{animation:shake .3s ease}
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <h2>🔐 고객 로그인</h2>
+  <div class="sub">계정과 비밀번호를 입력하세요</div>
+
+  <div class="pw-wrap">
+    <label>계정</label>
+    <input type="text" id="idInput" placeholder="계정 입력" autocomplete="off">
+  </div>
+
+  <div class="pw-wrap">
+    <label>비밀번호</label>
+    <input type="password" id="pwInput" placeholder="비밀번호" onkeyup="if(event.key==='Enter')doLogin()" autocomplete="off">
+  </div>
+
+  <button class="login-btn" id="loginBtn" onclick="doLogin()">로그인</button>
+  <div class="error" id="loginError"></div>
+</div>
+
+<script src="api-client.js"></script>
+<script>
+ApiClient.init('https://script.google.com/macros/s/AKfycbyJ65PS1DQCc0C5wL892I3juYPtInlMi1mltmgmMHbOhAChkqUvIc7Y-mx7wvhr9Voq/exec', 'jksurl-customer-2025');
+
+async function doLogin() {
+  var id = document.getElementById('idInput').value.trim();
+  var pw = document.getElementById('pwInput').value;
+  var err = document.getElementById('loginError');
+  var btn = document.getElementById('loginBtn');
+
+  if (!id) { err.textContent = '계정을 입력해주세요'; return; }
+  if (!pw) { err.textContent = '비밀번호를 입력해주세요'; return; }
+
+  btn.disabled = true; btn.textContent = '로그인 중...'; err.textContent = '';
+
+  try {
+    var result = await ApiClient.customer.login(id, pw);
+    if (result.success) {
+      sessionStorage.setItem('customer', JSON.stringify(result.customer));
+      window.location.href = 'index.html';
+    } else {
+      err.textContent = result.error || '계정 또는 비밀번호가 틀렸습니다';
+      document.querySelector('.login-wrap').classList.add('shake');
+      setTimeout(function(){document.querySelector('.login-wrap').classList.remove('shake')},300);
+    }
+  } catch(e) {
+    err.textContent = '서버 연결 실패: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '로그인';
+}
+</script>
+</body>
+</html>

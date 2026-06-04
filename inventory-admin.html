@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>재고 관리 시스템</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f0f2f5;color:#333}
+.top-bar{background:#1e3a5f;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.top-bar h1{font-size:18px}
+.api-status{font-size:11px;padding:3px 10px;border-radius:12px;margin-left:auto}
+.api-status.ok{background:#27ae60}
+.api-status.err{background:#e74c3c}
+.container{max-width:1500px;margin:20px auto;padding:0 16px}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.06);margin-bottom:16px;overflow:hidden}
+.card-header{padding:14px 20px;border-bottom:1px solid #eee;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card-body{padding:20px;overflow-x:auto}
+.form-inline{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.form-inline .field{display:flex;flex-direction:column;gap:3px}
+.form-inline label{font-size:11px;color:#888}
+.form-inline input,.form-inline select{width:100%;padding:8px 10px;border:2px solid #e0e0e0;border-radius:8px;font-size:12px;outline:none;min-width:90px}
+.form-inline input:focus,.form-inline select:focus{border-color:#2d6a9f}
+.form-inline .field.wide input{min-width:200px}
+
+.btn{padding:8px 16px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-primary{background:#2d6a9f;color:#fff}.btn-primary:hover{background:#1e3a5f}
+.btn-danger{background:#e74c3c;color:#fff}.btn-danger:hover{background:#c0392b}
+.btn-gray{background:#eee;color:#555}.btn-gray:hover{background:#ddd}
+.btn-success{background:#27ae60;color:#fff}.btn-success:hover{background:#219a52}
+.btn-sm{padding:4px 9px;font-size:10px}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f7f8fa;text-align:left;padding:9px 7px;border-bottom:2px solid #ddd;font-size:11px;color:#666;white-space:nowrap}
+td{padding:7px;border-bottom:1px solid #eee;vertical-align:middle}
+tr:hover td{background:#f9fafb}
+tr.inactive td{background:#fff5f5;color:#aaa}
+td.stock-zero{color:#e74c3c;font-weight:700}
+td.stock-low{color:#e67e22;font-weight:700}
+.actions{display:flex;gap:3px}
+.msg{padding:8px 12px;border-radius:8px;font-size:12px;margin-top:8px;display:none}
+.msg.ok{background:#d4edda;color:#155724;display:block}
+.msg.err{background:#f8d7da;color:#721c24;display:block}
+.total-info{font-size:11px;color:#888;margin-left:8px}
+.search-box{display:flex;gap:6px;align-items:center;margin-left:auto}
+.search-box input{width:180px;padding:6px 10px;border:2px solid #e0e0e0;border-radius:8px;font-size:12px}
+.setup-box{background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:16px;margin-bottom:16px;font-size:12px;line-height:1.8}
+.setup-box code{background:#f5f5f5;padding:1px 5px;border-radius:3px;font-size:11px}
+.modal-mask{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:999;justify-content:center;align-items:center}
+.modal-mask.active{display:flex}
+.modal-box{background:#fff;border-radius:12px;padding:24px;max-width:650px;width:95%;max-height:90vh;overflow-y:auto}
+.modal-box h3{margin-bottom:16px}
+.modal-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.modal-row .mf{flex:1;min-width:120px}
+.modal-row .mf.wide{min-width:200px}
+.modal-row label{display:block;font-size:11px;color:#888;margin-bottom:3px}
+.modal-row input,.modal-row select{width:100%;padding:9px 11px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;outline:none}
+.modal-row input:focus{border-color:#2d6a9f}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="mask" id="adminGate" style="display:flex;position:fixed;top:0;left:0;right:0;bottom:0;background:#1e3a5f;z-index:9999;justify-content:center;align-items:center">
+  <div style="background:#fff;border-radius:16px;padding:40px 30px;width:100%;max-width:360px;text-align:center;box-shadow:0 10px 50px rgba(0,0,0,.3)">
+    <div style="font-size:40px;margin-bottom:8px">🔐</div>
+    <h3 style="margin-bottom:6px;color:#1e3a5f">관리자 인증</h3>
+    <p style="font-size:12px;color:#888;margin-bottom:20px">관리자 계정과 비밀번호를 입력해주세요</p>
+    <input type="text" id="adminId" placeholder="계정" style="width:100%;padding:14px;border:2px solid #ddd;border-radius:10px;font-size:15px;outline:none;text-align:center;margin-bottom:8px">
+    <input type="password" id="adminPw" placeholder="비밀번호" style="width:100%;padding:14px;border:2px solid #ddd;border-radius:10px;font-size:15px;outline:none;text-align:center" onkeyup="if(event.key==='Enter')checkAdmin()">
+    <button onclick="checkAdmin()" id="adminBtn" style="width:100%;padding:12px;background:#2d6a9f;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px">확인</button>
+    <div id="adminErr" style="color:#e74c3c;font-size:12px;margin-top:8px;min-height:16px"></div>
+    <div style="font-size:11px;color:#aaa;margin-top:12px">Google Sheets API로 인증됩니다</div>
+  </div>
+</div>
+<script src="api-client.js"></script>
+<script>
+(function(){if(sessionStorage.getItem("admin_ok")==="1"){document.getElementById("adminGate").style.display="none";}})();
+async function checkAdmin(){
+  var id=document.getElementById("adminId").value.trim();
+  var pw=document.getElementById("adminPw").value;
+  var err=document.getElementById("adminErr");
+  var btn=document.getElementById("adminBtn");
+  if(!id){err.textContent="계정을 입력해주세요";return;}
+  if(!pw){err.textContent="비밀번호를 입력해주세요";return;}
+  btn.disabled=true;btn.textContent="인증 중...";err.textContent="";
+  try{
+    ApiClient.init("https://script.google.com/macros/s/AKfycbyJ65PS1DQCc0C5wL892I3juYPtInlMi1mltmgmMHbOhAChkqUvIc7Y-mx7wvhr9Voq/exec","jksurl-customer-2025");
+    var resp=await fetch(ApiClient.getUrl()+"?action=admin_login&id="+encodeURIComponent(id)+"&pw="+encodeURIComponent(pw));
+    var data=await resp.json();
+    if(data.success){
+      sessionStorage.setItem("admin_ok","1");
+      document.getElementById("adminGate").style.display="none";
+    }else{
+      err.textContent=data.error||"인증 실패";
+    }
+  }catch(e){err.textContent="서버 연결 실패";}
+  btn.disabled=false;btn.textContent="확인";
+}
+</script>
+
+
+
+<div class="top-bar">
+  <h1>📦 재고 관리</h1>
+  <span class="api-status" id="apiBadge">연결중...</span>
+</div>
+
+<div class="container">
+  <div class="setup-box" id="setupBox" style="display:none">
+    ⚠️ <b>API 주소를 설정해주세요</b><br>
+    아래에 Google Apps Script 배포 URL과 API Key를 입력하고 <b>저장</b>을 누르세요.
+  </div>
+
+  <!-- API 设置 -->
+  <div class="card" id="configCard">
+    <div class="card-header">⚙️ API 설정</div>
+    <div class="card-body">
+      <div class="form-inline">
+        <div class="field wide"><label>Google Apps Script URL</label><input type="text" id="apiUrlInput"></div>
+        <div class="field" style="max-width:180px"><label>API Key</label><input type="text" id="apiKeyInput"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn btn-primary" onclick="saveConfig()">저장 및 연결</button></div>
+        <div class="field"><label>&nbsp;</label><button class="btn btn-gray" onclick="testConnection()">연결 테스트</button></div>
+      </div>
+      <div class="msg" id="configMsg"></div>
+    </div>
+  </div>
+
+  <!-- 功能区 -->
+  <div class="card">
+    <div class="card-header">
+      📦 상품 관리
+      <span class="total-info" id="totalInfo"></span>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="검색..." oninput="renderTable()">
+        <button class="btn btn-sm btn-gray" onclick="loadData()">🔄 새로고침</button>
+        <button class="btn btn-sm btn-success" onclick="openAddModal()">➕ 신규</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto;max-height:70vh;overflow-y:auto">
+      <table><thead><tr>
+        <th>행</th><th>바코드</th><th>대표코드</th><th>상품코드</th><th>카테고리</th><th>로케이션</th><th>상품명</th><th>옵션</th><th>단가</th><th>재고</th><th>이미지</th><th>등록일</th><th>상태</th><th>관리</th>
+      </tr></thead>
+      <tbody id="tableBody"><tr><td colspan="14" style="text-align:center;color:#aaa;padding:30px">데이터를 불러오는 중...</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal-mask" id="editModal">
+  <div class="modal-box">
+    <h3 id="modalTitle">➕ 신규 상품 등록</h3>
+    <div class="modal-row">
+      <div class="mf wide"><label>상품명 *</label><input type="text" id="eName"></div>
+      <div class="mf"><label>옵션</label><input type="text" id="eOption" placeholder="없으면 빈칸"></div>
+    </div>
+    <div class="modal-row">
+      <div class="mf"><label>바코드</label><input type="text" id="eBarcode"></div>
+      <div class="mf"><label>대표상품코드</label><input type="text" id="eGroupCode"></div>
+      <div class="mf"><label>상품코드(매칭)</label><input type="text" id="eSkuCode"></div>
+    </div>
+    <div class="modal-row">
+      <div class="mf"><label>카테고리</label><input type="text" id="eCategory"></div>
+      <div class="mf"><label>로케이션</label><input type="text" id="eLocation"></div>
+      <div class="mf"><label>등록일</label><input type="text" id="eRegDate" placeholder="2025-01-01"></div>
+    </div>
+    <div class="modal-row">
+      <div class="mf"><label>판매가</label><input type="number" id="ePrice" min="0"></div>
+      <div class="mf"><label>정상재고</label><input type="number" id="eStock" min="0"></div>
+    </div>
+    <div class="modal-row">
+      <div class="mf wide"><label>이미지URL</label><input type="text" id="eImage" placeholder="https://..."></div>
+    </div>
+    <input type="hidden" id="eRow">
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" id="modalSaveBtn" onclick="saveItem()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="api-client.js"></script>
+<script>
+// ============ 全局 ============
+let allRows = [];
+let configOk = false;
+
+function loadConfig() {
+  var u = localStorage.getItem('cs_api_url') || '';
+  var k = localStorage.getItem('cs_api_key') || 'jksurl-customer-2025';
+  document.getElementById('apiUrlInput').value = u;
+  document.getElementById('apiKeyInput').value = k;
+  ApiClient.init(u, k);
+  if (!u) {
+    document.getElementById('setupBox').style.display = 'block';
+    document.getElementById('apiBadge').className = 'api-status err';
+    document.getElementById('apiBadge').textContent = '설정 필요';
+  } else {
+    testConnection();
+  }
+}
+
+function saveConfig() {
+  var u = document.getElementById('apiUrlInput').value.trim();
+  var k = document.getElementById('apiKeyInput').value.trim() || 'jksurl-customer-2025';
+  if (!u) { showMsg('configMsg','err','URL을 입력해주세요'); return; }
+  localStorage.setItem('cs_api_url', u);
+  localStorage.setItem('cs_api_key', k);
+  ApiClient.init(u, k);
+  document.getElementById('setupBox').style.display = 'none';
+  testConnection();
+}
+
+async function testConnection() {
+  var badge = document.getElementById('apiBadge');
+  badge.textContent = '연결중...'; badge.className = 'api-status';
+  try {
+    var data = await ApiClient.inventory.getRows();
+    if (data.success !== false) {
+      configOk = true;
+      badge.textContent = '연결 성공'; badge.className = 'api-status ok';
+      showMsg('configMsg','ok','연결 성공!');
+      document.getElementById('configCard').style.display = 'none';
+      loadData();
+    } else {
+      badge.textContent = (data.error||'실패'); badge.className = 'api-status err';
+      showMsg('configMsg','err',data.error||'연결 실패');
+    }
+  } catch(e) {
+    badge.textContent = '연결 실패'; badge.className = 'api-status err';
+    showMsg('configMsg','err','서버 연결 실패: '+e.message);
+  }
+}
+
+async function loadData() {
+  if (!configOk) return;
+  try {
+    var data = await ApiClient.inventory.getRows();
+    if (data.success) {
+      allRows = data.rows || [];
+      document.getElementById('totalInfo').textContent = '총 '+allRows.length+'행';
+      renderTable();
+    }
+  } catch(e) { console.error(e); }
+}
+
+function renderTable() {
+  var q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  var filtered = allRows;
+  if (q) {
+    filtered = allRows.filter(function(r) {
+      return (r.name||'').toLowerCase().indexOf(q)>=0 ||
+             (r.option||'').toLowerCase().indexOf(q)>=0 ||
+             (r.barcode||'').toLowerCase().indexOf(q)>=0 ||
+             (r.groupCode||'').toLowerCase().indexOf(q)>=0 ||
+             (r.skuCode||'').toLowerCase().indexOf(q)>=0;
+    });
+  }
+  var tbody = document.getElementById('tableBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:#aaa;padding:30px">검색 결과 없음</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(function(r) {
+    var cls = r.active==='N'?'inactive':'';
+    var sCls = r.stock<=0?'stock-zero':r.stock<=20?'stock-low':'';
+    var st = r.active==='N'?'비활성':'활성';
+    var imgShort = (r.image||'').length > 30 ? r.image.slice(0,30)+'...' : (r.image||'-');
+    return '<tr class="'+cls+'">'+
+      '<td>'+r._row+'</td>'+
+      '<td style="font-family:monospace;font-size:10px">'+esc(r.barcode||'-')+'</td>'+
+      '<td style="font-family:monospace;font-size:10px">'+esc(r.groupCode||'-')+'</td>'+
+      '<td style="font-family:monospace;font-size:10px">'+esc(r.skuCode||'-')+'</td>'+
+      '<td style="font-size:10px">'+esc(r.category||'-')+'</td>'+
+      '<td style="font-size:10px">'+esc(r.location||'-')+'</td>'+
+      '<td><b>'+esc(r.name)+'</b></td>'+
+      '<td>'+esc(r.option||'-')+'</td>'+
+      '<td>'+(r.price>0?r.price.toLocaleString()+'원':'-')+'</td>'+
+      '<td class="'+sCls+'">'+(r.stock||0).toLocaleString()+'</td>'+
+      '<td style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="'+escAttr(r.image||'')+'">'+esc(imgShort)+'</td>'+
+      '<td>'+esc(r.regDate||'-')+'</td>'+
+      '<td>'+st+'</td>'+
+      '<td><div class="actions">'+
+        '<button class="btn btn-sm btn-primary" onclick="openEditModal('+r._row+')">수정</button>'+
+        '<button class="btn btn-sm btn-danger" onclick="delRow('+r._row+',\''+escAttr(r.name||'')+'\')">삭제</button>'+
+      '</div></td></tr>';
+  }).join('');
+}
+
+function openAddModal() {
+  document.getElementById('modalTitle').textContent = '➕ 신규 상품 등록';
+  document.getElementById('eRow').value = '';
+  document.getElementById('eName').value = '';
+  document.getElementById('eOption').value = '';
+  document.getElementById('eBarcode').value = '';
+  document.getElementById('eGroupCode').value = '';
+  document.getElementById('eSkuCode').value = '';
+  document.getElementById('eCategory').value = '';
+  document.getElementById('eLocation').value = '';
+  document.getElementById('ePrice').value = '';
+  document.getElementById('eStock').value = '';
+  document.getElementById('eImage').value = '';
+  document.getElementById('eRegDate').value = '';
+  document.getElementById('editModal').classList.add('active');
+}
+
+function openEditModal(rowNum) {
+  var r = allRows.find(function(x) { return x._row === rowNum; });
+  if (!r) return;
+  document.getElementById('modalTitle').textContent = '✏️ 수정: '+r.name;
+  document.getElementById('eRow').value = r._row;
+  document.getElementById('eName').value = r.name||'';
+  document.getElementById('eOption').value = r.option||'';
+  document.getElementById('eBarcode').value = r.barcode||'';
+  document.getElementById('eGroupCode').value = r.groupCode||'';
+  document.getElementById('eSkuCode').value = r.skuCode||'';
+  document.getElementById('eCategory').value = r.category||'';
+  document.getElementById('eLocation').value = r.location||'';
+  document.getElementById('ePrice').value = r.price||0;
+  document.getElementById('eStock').value = r.stock||0;
+  document.getElementById('eImage').value = r.image||'';
+  document.getElementById('eRegDate').value = r.regDate||'';
+  document.getElementById('editModal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('active');
+}
+
+async function saveItem() {
+  var row = parseInt(document.getElementById('eRow').value) || 0;
+  var name = document.getElementById('eName').value.trim();
+  if (!name) { alert('상품명을 입력해주세요'); return; }
+  
+  var item = {
+    name: name,
+    option: document.getElementById('eOption').value.trim(),
+    barcode: document.getElementById('eBarcode').value.trim(),
+    groupCode: document.getElementById('eGroupCode').value.trim(),
+    skuCode: document.getElementById('eSkuCode').value.trim(),
+    category: document.getElementById('eCategory').value.trim(),
+    location: document.getElementById('eLocation').value.trim(),
+    price: parseInt(document.getElementById('ePrice').value) || 0,
+    stock: parseInt(document.getElementById('eStock').value) || 0,
+    image: document.getElementById('eImage').value.trim(),
+    regDate: document.getElementById('eRegDate').value.trim()
+  };
+
+  var result;
+  if (row > 0) {
+    item.row = row;
+    result = await ApiClient.inventory.update(item);
+  } else {
+    result = await ApiClient.inventory.add(item);
+  }
+
+  if (result.success) {
+    closeModal();
+    loadData();
+  } else {
+    alert(result.error || '저장 실패');
+  }
+}
+
+async function delRow(rowNum, name) {
+  if (!confirm('\''+name+'\' (행 '+rowNum+')을 정말 삭제하시겠습니까?')) return;
+  var result = await ApiClient.inventory.delete(rowNum);
+  if (result.success) loadData();
+  else alert(result.error||'삭제 실패');
+}
+
+function showMsg(id, type, text) {
+  var el = document.getElementById(id);
+  el.className = 'msg '+type; el.textContent = text;
+  setTimeout(function(){el.className='msg';el.textContent='';},4000);
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+loadConfig();
+</script>
+</body>
+</html>

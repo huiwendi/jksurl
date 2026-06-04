@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>고객 관리 시스템</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f0f2f5;color:#333}
+.top-bar{background:#1e3a5f;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:16px}
+.top-bar h1{font-size:18px}
+.top-bar .sub{font-size:11px;opacity:.6}
+.api-status{font-size:11px;padding:3px 10px;border-radius:12px;margin-left:auto}
+.api-status.ok{background:#27ae60;color:#fff}
+.api-status.err{background:#e74c3c;color:#fff}
+.container{max-width:1100px;margin:20px auto;padding:0 16px}
+
+/* 表单卡片 */
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.06);margin-bottom:16px;overflow:hidden}
+.card-header{padding:14px 20px;border-bottom:1px solid #eee;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.card-body{padding:20px}
+.form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.form-row label{display:block;font-size:11px;color:#888;margin-bottom:3px}
+.form-row .field{flex:1;min-width:140px}
+.form-row .field.wide{min-width:280px}
+.form-row input,.form-row select{width:100%;padding:9px 11px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;outline:none}
+.form-row input:focus,.form-row select:focus{border-color:#2d6a9f}
+.btn{padding:9px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-primary{background:#2d6a9f;color:#fff}.btn-primary:hover{background:#1e3a5f}
+.btn-danger{background:#e74c3c;color:#fff}.btn-danger:hover{background:#c0392b}
+.btn-gray{background:#eee;color:#555}.btn-gray:hover{background:#ddd}
+.btn-success{background:#27ae60;color:#fff}.btn-success:hover{background:#219a52}
+.btn-sm{padding:5px 10px;font-size:11px}
+.form-actions{display:flex;gap:8px;margin-top:12px}
+.msg{padding:8px 12px;border-radius:8px;font-size:12px;margin-top:8px;display:none}
+.msg.ok{background:#d4edda;color:#155724;display:block}
+.msg.err{background:#f8d7da;color:#721c24;display:block}
+
+/* 客户列表表格 */
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f7f8fa;text-align:left;padding:10px 8px;border-bottom:2px solid #ddd;font-size:11px;color:#666;white-space:nowrap}
+td{padding:8px;border-bottom:1px solid #eee;vertical-align:middle}
+tr:hover td{background:#fafbfc}
+td.code{font-family:monospace;font-size:11px}
+.active-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.active-dot.on{background:#27ae60}
+.active-dot.off{background:#ccc}
+.actions{display:flex;gap:4px}
+.empty{text-align:center;color:#aaa;padding:40px;font-size:13px}
+.loading-row{text-align:center;color:#aaa;padding:20px}
+.total-info{font-size:11px;color:#888;padding:8px 20px 0}
+.setup-box{background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:16px;margin-bottom:16px;font-size:12px;line-height:1.8}
+.setup-box code{background:#f5f5f5;padding:1px 5px;border-radius:3px;font-size:11px}
+.mask{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:999;justify-content:center;align-items:center}
+.mask.active{display:flex}
+.modal{background:#fff;border-radius:12px;padding:24px;max-width:400px;width:90%}
+.modal h3{margin-bottom:12px}
+.modal p{font-size:13px;color:#666;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="mask" id="adminGate" style="display:flex;position:fixed;top:0;left:0;right:0;bottom:0;background:#1e3a5f;z-index:9999;justify-content:center;align-items:center">
+  <div style="background:#fff;border-radius:16px;padding:40px 30px;width:100%;max-width:360px;text-align:center;box-shadow:0 10px 50px rgba(0,0,0,.3)">
+    <div style="font-size:40px;margin-bottom:8px">🔐</div>
+    <h3 style="margin-bottom:6px;color:#1e3a5f">관리자 인증</h3>
+    <p style="font-size:12px;color:#888;margin-bottom:20px">관리자 계정과 비밀번호를 입력해주세요</p>
+    <input type="text" id="adminId" placeholder="계정" style="width:100%;padding:14px;border:2px solid #ddd;border-radius:10px;font-size:15px;outline:none;text-align:center;margin-bottom:8px">
+    <input type="password" id="adminPw" placeholder="비밀번호" style="width:100%;padding:14px;border:2px solid #ddd;border-radius:10px;font-size:15px;outline:none;text-align:center" onkeyup="if(event.key==='Enter')checkAdmin()">
+    <button onclick="checkAdmin()" id="adminBtn" style="width:100%;padding:12px;background:#2d6a9f;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px">확인</button>
+    <div id="adminErr" style="color:#e74c3c;font-size:12px;margin-top:8px;min-height:16px"></div>
+    <div style="font-size:11px;color:#aaa;margin-top:12px">Google Sheets API로 인증됩니다</div>
+  </div>
+</div>
+<script src="api-client.js"></script>
+<script>
+(function(){if(sessionStorage.getItem("admin_ok")==="1"){document.getElementById("adminGate").style.display="none";}})();
+async function checkAdmin(){
+  var id=document.getElementById("adminId").value.trim();
+  var pw=document.getElementById("adminPw").value;
+  var err=document.getElementById("adminErr");
+  var btn=document.getElementById("adminBtn");
+  if(!id){err.textContent="계정을 입력해주세요";return;}
+  if(!pw){err.textContent="비밀번호를 입력해주세요";return;}
+  btn.disabled=true;btn.textContent="인증 중...";err.textContent="";
+  try{
+    ApiClient.init("https://script.google.com/macros/s/AKfycbyJ65PS1DQCc0C5wL892I3juYPtInlMi1mltmgmMHbOhAChkqUvIc7Y-mx7wvhr9Voq/exec","jksurl-customer-2025");
+    var resp=await fetch(ApiClient.getUrl()+"?action=admin_login&id="+encodeURIComponent(id)+"&pw="+encodeURIComponent(pw));
+    var data=await resp.json();
+    if(data.success){
+      sessionStorage.setItem("admin_ok","1");
+      document.getElementById("adminGate").style.display="none";
+    }else{
+      err.textContent=data.error||"인증 실패";
+    }
+  }catch(e){err.textContent="서버 연결 실패";}
+  btn.disabled=false;btn.textContent="확인";
+}
+</script>
+
+
+
+<div class="top-bar">
+  <h1>👥 고객 관리</h1>
+  <span class="sub">Google Sheets 기반</span>
+  <span class="api-status" id="apiBadge">연결중...</span>
+</div>
+
+<div class="container">
+  <!-- 配置提示（首次使用） -->
+  <div class="setup-box" id="setupBox" style="display:none">
+    ⚠️ <b>API 주소를 설정해주세요</b><br>
+    아래 입력창에 Google Apps Script 배포 URL을 입력하고 <b>저장</b>을 누르세요.<br>
+    자세한 내용은 <code>README.md</code>를 참고하세요.
+  </div>
+
+  <!-- API 设置 -->
+  <div class="card">
+    <div class="card-header">⚙️ API 설정</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="field wide">
+          <label>Google Apps Script URL</label>
+          <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <div class="field" style="max-width:200px">
+          <label>API Key</label>
+          <input type="text" id="apiKeyInput" placeholder="jksurl-customer-2025">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="saveConfig()">💾 저장 및 연결</button>
+        <button class="btn btn-gray" onclick="testConnection()">🔍 연결 테스트</button>
+      </div>
+      <div class="msg" id="configMsg"></div>
+    </div>
+  </div>
+
+  <!-- 添加/编辑客户 -->
+  <div class="card">
+    <div class="card-header" id="formTitle">➕ 신규 고객 등록</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="field"><label>계정 (ID) *</label><input type="text" id="fId" placeholder="로그인 계정"></div>
+        <div class="field"><label>비밀번호 *</label><input type="text" id="fPw" placeholder="비밀번호"></div>
+        <div class="field"><label>고객코드</label><input type="text" id="fCode" placeholder="vip001"></div>
+        <div class="field" style="max-width:100px"><label>활성</label><select id="fActive"><option value="Y">활성</option><option value="N">비활성</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="field wide"><label>이름 *</label><input type="text" id="fName" placeholder="수령자명"></div>
+        <div class="field"><label>전화번호</label><input type="text" id="fPhone" placeholder="010-0000-0000"></div>
+        <div class="field"><label>핸드폰</label><input type="text" id="fMobile" placeholder="010-0000-0000"></div>
+        <div class="field" style="max-width:100px"><label>우편번호</label><input type="text" id="fZip" placeholder="12345"></div>
+      </div>
+      <div class="form-row">
+        <div class="field wide"><label>주소</label><input type="text" id="fAddr" placeholder="전체 주소"></div>
+        <div class="field wide"><label>배송메모</label><input type="text" id="fMemo" placeholder="배송 관련 특이사항"></div>
+      </div>
+      <input type="hidden" id="fEditId">
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="saveCustomer()">💾 저장</button>
+        <button class="btn btn-gray" onclick="resetForm()">↩ 초기화</button>
+      </div>
+      <div class="msg" id="formMsg"></div>
+    </div>
+  </div>
+
+  <!-- 客户列表 -->
+  <div class="card">
+    <div class="card-header">
+      📋 고객 목록
+      <span class="total-info" id="totalInfo"></span>
+      <button class="btn btn-sm btn-gray" style="margin-left:auto" onclick="loadCustomers()">🔄 새로고침</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>계정</th><th>이름</th><th>전화번호</th><th>우편번호</th><th>주소</th><th>코드</th><th>상태</th><th style="width:100px">관리</th>
+        </tr></thead>
+        <tbody id="customerTable"><tr class="loading-row"><td colspan="8">데이터를 불러오는 중...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认弹窗 -->
+<div class="mask" id="deleteMask">
+  <div class="modal">
+    <h3>⚠️ 고객 삭제</h3>
+    <p id="deleteMsg">정말 삭제하시겠습니까?</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closeDelete()">취소</button>
+      <button class="btn btn-danger" id="deleteConfirmBtn">삭제</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ 配置 ============
+let API_URL = '';
+let API_KEY = '';
+
+function loadConfig() {
+  API_URL = localStorage.getItem('cs_api_url') || '';
+  API_KEY = localStorage.getItem('cs_api_key') || 'jksurl-customer-2025';
+  document.getElementById('apiUrlInput').value = API_URL;
+  document.getElementById('apiKeyInput').value = API_KEY;
+  if (!API_URL) {
+    document.getElementById('setupBox').style.display = 'block';
+    document.getElementById('apiBadge').className = 'api-status err';
+    document.getElementById('apiBadge').textContent = '설정 필요';
+  } else {
+    testConnection();
+  }
+}
+
+function saveConfig() {
+  API_URL = document.getElementById('apiUrlInput').value.trim();
+  API_KEY = document.getElementById('apiKeyInput').value.trim() || 'jksurl-customer-2025';
+  if (!API_URL) { showMsg('configMsg','err','API URL을 입력해주세요'); return; }
+  localStorage.setItem('cs_api_url', API_URL);
+  localStorage.setItem('cs_api_key', API_KEY);
+  document.getElementById('setupBox').style.display = 'none';
+  testConnection();
+}
+
+async function testConnection() {
+  if (!API_URL) { saveConfig(); return; }
+  const badge = document.getElementById('apiBadge');
+  badge.textContent = '연결중...'; badge.className = 'api-status';
+  try {
+    const resp = await fetch(API_URL + '?action=list&key=' + encodeURIComponent(API_KEY));
+    const data = await resp.json();
+    if (data.success) {
+      badge.textContent = '연결 성공'; badge.className = 'api-status ok';
+      showMsg('configMsg','ok','연결 성공! ' + data.customers.length + '명의 고객이 있습니다');
+      loadCustomers();
+    } else {
+      badge.textContent = '인증 실패'; badge.className = 'api-status err';
+      showMsg('configMsg','err',data.error || '연결 실패');
+    }
+  } catch(e) {
+    badge.textContent = '연결 실패'; badge.className = 'api-status err';
+    showMsg('configMsg','err','서버 연결 실패: ' + e.message);
+  }
+}
+
+// ============ 加载客户列表 ============
+async function loadCustomers() {
+  if (!API_URL) return;
+  const tbody = document.getElementById('customerTable');
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="8">불러오는 중...</td></tr>';
+  try {
+    const resp = await fetch(API_URL + '?action=list&key=' + encodeURIComponent(API_KEY) + '&t=' + Date.now());
+    const data = await resp.json();
+    if (!data.success) { tbody.innerHTML = '<tr class="empty"><td colspan="8">불러오기 실패: '+data.error+'</td></tr>'; return; }
+    const customers = data.customers || [];
+    document.getElementById('totalInfo').textContent = '총 ' + customers.length + '명';
+    if (customers.length === 0) {
+      tbody.innerHTML = '<tr class="empty"><td colspan="8">등록된 고객이 없습니다</td></tr>';
+      return;
+    }
+    tbody.innerHTML = customers.map(c => {
+      const activeDot = c.active === 'N' ? '<span class="active-dot off"></span>비활성' : '<span class="active-dot on"></span>활성';
+      const addr = (c.address||'').length > 25 ? c.address.slice(0,25)+'...' : c.address;
+      return '<tr>' +
+        '<td>' + esc(c.id) + '</td>' +
+        '<td>' + esc(c.name) + '</td>' +
+        '<td>' + esc(c.phone||c.mobile||'') + '</td>' +
+        '<td>' + esc(c.zip) + '</td>' +
+        '<td title="' + escAttr(c.address||'') + '">' + esc(addr) + '</td>' +
+        '<td class="code">' + esc(c.code) + '</td>' +
+        '<td>' + activeDot + '</td>' +
+        '<td><div class="actions">' +
+          '<button class="btn btn-sm btn-primary" onclick="editCustomer(\''+escAttr(c.id)+'\')">수정</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="confirmDelete(\''+escAttr(c.id)+'\',\''+escAttr(c.name)+'\')">삭제</button>' +
+        '</div></td></tr>';
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr class="empty"><td colspan="8">네트워크 오류: '+esc(e.message)+'</td></tr>';
+  }
+}
+
+// ============ 编辑客户 ============
+async function editCustomer(id) {
+  if (!API_URL) return;
+  try {
+    const resp = await fetch(API_URL + '?action=list&key=' + encodeURIComponent(API_KEY));
+    const data = await resp.json();
+    if (!data.success) return;
+    const c = data.customers.find(x => x.id === id);
+    if (!c) return;
+    document.getElementById('fEditId').value = c.id;
+    document.getElementById('fId').value = c.id;
+    document.getElementById('fId').readOnly = true;
+    document.getElementById('fPw').value = '';
+    document.getElementById('fPw').placeholder = '(변경시만 입력)';
+    document.getElementById('fName').value = c.name || '';
+    document.getElementById('fPhone').value = c.phone || '';
+    document.getElementById('fMobile').value = c.mobile || '';
+    document.getElementById('fZip').value = c.zip || '';
+    document.getElementById('fAddr').value = c.address || '';
+    document.getElementById('fMemo').value = c.memo || '';
+    document.getElementById('fCode').value = c.code || '';
+    document.getElementById('fActive').value = c.active || 'Y';
+    document.getElementById('formTitle').textContent = '✏️ 고객 수정: ' + c.name;
+    window.scrollTo({top:0,behavior:'smooth'});
+  } catch(e) {}
+}
+
+function resetForm() {
+  document.getElementById('fEditId').value = '';
+  document.getElementById('fId').value = '';
+  document.getElementById('fId').readOnly = false;
+  document.getElementById('fPw').value = '';
+  document.getElementById('fPw').placeholder = '비밀번호';
+  document.getElementById('fName').value = '';
+  document.getElementById('fPhone').value = '';
+  document.getElementById('fMobile').value = '';
+  document.getElementById('fZip').value = '';
+  document.getElementById('fAddr').value = '';
+  document.getElementById('fMemo').value = '';
+  document.getElementById('fCode').value = '';
+  document.getElementById('fActive').value = 'Y';
+  document.getElementById('formTitle').textContent = '➕ 신규 고객 등록';
+}
+
+async function saveCustomer() {
+  if (!API_URL) { showMsg('formMsg','err','먼저 API 설정을 저장해주세요'); return; }
+  const editId = document.getElementById('fEditId').value;
+  const id = document.getElementById('fId').value.trim();
+  const pw = document.getElementById('fPw').value;
+  const name = document.getElementById('fName').value.trim();
+  
+  if (!id) { showMsg('formMsg','err','계정(ID)을 입력해주세요'); return; }
+  if (!editId && !pw) { showMsg('formMsg','err','비밀번호를 입력해주세요'); return; }
+  if (!name) { showMsg('formMsg','err','이름을 입력해주세요'); return; }
+
+  const body = {
+    action: editId ? 'update' : 'add',
+    key: API_KEY,
+    id: id,
+    password: pw,
+    name: name,
+    phone: document.getElementById('fPhone').value.trim(),
+    mobile: document.getElementById('fMobile').value.trim(),
+    zip: document.getElementById('fZip').value.trim(),
+    address: document.getElementById('fAddr').value.trim(),
+    memo: document.getElementById('fMemo').value.trim(),
+    code: document.getElementById('fCode').value.trim(),
+    active: document.getElementById('fActive').value
+  };
+
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showMsg('formMsg','ok', editId ? '수정 완료!' : '등록 완료!');
+      resetForm();
+      loadCustomers();
+    } else {
+      showMsg('formMsg','err', data.error || '저장 실패');
+    }
+  } catch(e) {
+    showMsg('formMsg','err', '네트워크 오류: ' + e.message);
+  }
+}
+
+// ============ 删除客户 ============
+let deleteTarget = '';
+function confirmDelete(id, name) {
+  deleteTarget = id;
+  document.getElementById('deleteMsg').textContent = '\'' + name + '\' (' + id + ') 고객을 정말 삭제하시겠습니까?';
+  document.getElementById('deleteMask').classList.add('active');
+}
+function closeDelete() {
+  deleteTarget = '';
+  document.getElementById('deleteMask').classList.remove('active');
+}
+document.getElementById('deleteConfirmBtn').addEventListener('click', async function() {
+  if (!deleteTarget) return;
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ action: 'delete', key: API_KEY, id: deleteTarget })
+    });
+    const data = await resp.json();
+    closeDelete();
+    if (data.success) loadCustomers();
+    else alert(data.error || '삭제 실패');
+  } catch(e) { alert('네트워크 오류: ' + e.message); closeDelete(); }
+});
+
+// ============ 工具 ============
+function showMsg(id, type, text) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + type; el.textContent = text;
+  setTimeout(() => { el.className = 'msg'; el.textContent = ''; }, 4000);
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+// ============ 启动 ============
+loadConfig();
+</script>
+</body>
+</html>
