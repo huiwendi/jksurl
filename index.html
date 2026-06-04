@@ -376,7 +376,7 @@ function openModal(name) {
         '<span class="qty" id="mqty_'+idx+'">'+(o.stock>0?1:0)+'</span>'+
         '<button onclick="changeModalQty('+idx+',1)" '+(o.stock<=0?'disabled':'')+'>+</button>'+
       '</div>'+
-      '<button class="btn-add-opt" '+(o.stock<=0?'disabled':'')+' onclick="addOptToCart(\''+escAttr(g.name)+'\','+idx+')">담기</button>'+
+      '<button class="btn-add-opt" '+(o.stock<=0?'disabled':'')+' onclick="addOptToCart(this,\''+escAttr(g.name)+'\','+idx+')">담기</button>'+
     '</div>';
   });
 
