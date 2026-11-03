@@ -215,7 +215,7 @@ function renderCard(o) {
     '<div class="oc-meta">' +
       esc(o.createdAt) +
       (o.sentAt ? ' · 발송 ' + esc(o.sentAt) : '') +
-      ' · ' + (o.itemCount || 0) + '종 / ' + (o.totalQty || 0) + '개 · <b style="color:#e74c3c">' + money(o.totalAmount) + '원</b>' +
+      ' · ' + (o.itemCount || 0) + '종 / ' + (o.totalQty || 0) + '개' +
     '</div>' +
     '<div class="oc-actions">' + acts.join('') + '</div>' +
   '</div>';
@@ -226,12 +226,9 @@ async function showDetail(orderNo) {
   if (!res || !res.success) { toast(res && res.error || '불러오기 실패'); return; }
   var o = res.order;
   var rows = (o.items || []).map(function(it) {
-    var price = Number(it.price) || 0;
     return '<tr>' +
       '<td>' + esc(it.name) + (it.optName ? '<br><span style="color:#888;font-size:11px">' + esc(it.optName) + '</span>' : '') + '</td>' +
       '<td class="num">' + it.qty + '</td>' +
-      '<td class="num">' + (price ? money(price) + '원' : '-') + '</td>' +
-      '<td class="num">' + (price ? money(price * it.qty) + '원' : '-') + '</td>' +
     '</tr>';
   }).join('');
 
@@ -250,8 +247,8 @@ async function showDetail(orderNo) {
       (cust.address ? '<br>주소: ' + esc(cust.address) : '') +
       (cust.memo ? '<br>메모: ' + esc(cust.memo) : '') +
     '</div>' +
-    '<table class="m-table"><thead><tr><th>상품</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-    '<div class="m-total"><span>합계 (' + (o.totalQty || 0) + '개)</span><span>' + money(o.totalAmount) + '원</span></div>' +
+    '<table class="m-table"><thead><tr><th>상품</th><th class="num">수량</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="m-total"><span>합계 (' + (o.totalQty || 0) + '개)</span><span></span></div>' +
     acts;
 
   document.getElementById('detailMask').classList.add('active');

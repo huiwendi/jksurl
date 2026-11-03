@@ -231,7 +231,6 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
     </div>
     <div class="cart-total" id="cartTotal" style="display:none">
       <div class="cart-total-row">품목 수 <span id="cartItemCount">0</span>개</div>
-      <div class="cart-total-row total">합계 <span id="totalPrice">-</span></div>
       <div class="cart-actions">
         <button class="btn-order" onclick="previewOrder()">📋 주문서</button>
         <button class="btn-clear" onclick="clearCart()">비우기</button>
@@ -243,7 +242,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 <div class="cart-mobile" id="cartMobile" style="display:none">
   <div class="cm-summary" onclick="toggleCmPanel()">
     <div class="cm-label">🛒 주문</div>
-    <div><span class="cm-count" id="cmCount">0</span><span class="cm-total" id="cmTotal"></span></div>
+    <div><span class="cm-count" id="cmCount">0</span></div>
   </div>
   <button class="cm-btn" onclick="previewOrder()">📋 주문서</button>
   <button class="cm-clear" onclick="clearCart()">🗑️</button>
@@ -401,8 +400,6 @@ function renderGrid() {
     var imgHtml = g.image
       ? '<img class="card-img" src="'+esc(g.image)+'" loading="lazy" onerror="this.className=\'card-img placeholder\';this.textContent=\'📷\'">'
       : '<div class="card-img placeholder">📷</div>';
-    var prices = g.options.filter(function(o){return o.price>0;}).map(function(o){return o.price;});
-    var minPrice = prices.length ? Math.min.apply(null, prices) : Infinity;
 
     return '<div class="card" data-name="' + esc(g.name) + '">'+
       imgHtml+
@@ -410,7 +407,6 @@ function renderGrid() {
         '<div class="card-name">'+esc(g.name)+'</div>'+
         '<div class="card-meta">'+g.options.length+'개 옵션'+(g.regDate?' · '+g.regDate:'')+'</div>'+
         '<div class="card-stock">'+stockDot+' '+(totalStock>0?'있음':'품절')+'</div>'+
-        (minPrice<Infinity?'<div class="card-price">최저 '+minPrice.toLocaleString()+'원</div>':'')+
       '</div></div>';
   }).join('');
   html += '</div>';
@@ -438,13 +434,11 @@ function openModal(name) {
   g.options.forEach(function(o, idx) {
     var sc = o.stock===0?'none':'has';
     var stockDot = o.stock===0?'⚫':o.stock<=20?'🟡':'🟢';
-    var priceText = o.price>0?o.price.toLocaleString()+'원':'-';
     var optImgHtml = o.image?'<img class="opt-img" src="'+esc(o.image)+'" loading="lazy" onerror="this.style.display=\'none\'">':'';
 
     html += '<div class="opt-item">'+
       optImgHtml+
       '<div class="opt-label">'+esc(o.optName)+(o.barcode?' <span style="font-size:9px;color:#aaa">('+esc(o.barcode)+')</span>':'')+'</div>'+
-      '<div class="opt-price">'+priceText+'</div>'+
       '<div class="opt-stock '+sc+'">'+(o.stock===0?'품절':stockDot+' 있음')+'</div>'+
       '<div class="opt-qty">'+
         '<button onclick="changeModalQty('+idx+',-1)" '+(o.stock<=0?'disabled':'')+'>−</button>'+
@@ -506,18 +500,14 @@ function updateCart() {
   total.style.display = 'block';
 
   var items = cart.reduce(function(s,c){return s+c.qty;},0);
-  var price = cart.reduce(function(s,c){return s+(c.price||0)*c.qty;},0);
   document.getElementById('cartItemCount').textContent = items;
-  document.getElementById('totalPrice').textContent = price>0?price.toLocaleString()+'원':'-';
 
   list.innerHTML = cart.map(function(c,i){
     var img=c.image?'<img class="cart-item-img" src="'+esc(c.image)+'" onerror="this.style.display=\'none\'">':'';
-    var up=c.price||0;
     return '<div class="cart-item">'+img+'<div class="cart-item-info">'+
       '<div class="cart-item-name">'+esc(c.name)+'</div>'+
       (c.optName!=='(옵션없음)'?'<div class="cart-item-opt">'+esc(c.optName)+'</div>':'')+
       '<div class="cart-item-row">'+
-        '<span class="cart-item-price">'+(up?up.toLocaleString()+'원':'')+'</span>'+
         '<div class="cart-item-qty">'+
           '<button onclick="cartQty('+i+',-1)">−</button>'+
           '<span class="qty">'+c.qty+'</span>'+
@@ -566,17 +556,13 @@ function updateMobileCart() {
   }
   mb.style.display = 'flex';
   var items = cart.reduce(function(s,c){return s+c.qty;},0);
-  var price = cart.reduce(function(s,c){return s+(c.price||0)*c.qty;},0);
   document.getElementById('cmCount').textContent = items+'개';
-  document.getElementById('cmTotal').textContent = price>0?' '+price.toLocaleString()+'원':'';
   panel.innerHTML = cart.map(function(c,i){
     var img=c.image?'<img class="cm-item-img" src="'+esc(c.image)+'" onerror="this.style.display=\'none\'">':'';
-    var up=c.price||0;
     return '<div class="cm-item">'+img+'<div class="cm-item-info">'+
       '<div class="cm-item-name">'+esc(c.name)+'</div>'+
       (c.optName!=='(옵션없음)'?'<div class="cm-item-opt">'+esc(c.optName)+'</div>':'')+
       '<div class="cm-item-row">'+
-        '<span class="cm-item-price">'+(up?up.toLocaleString()+'원':'')+'</span>'+
         '<div class="cm-item-qty">'+
           '<button onclick="cartQty('+i+',-1)">−</button>'+
           '<span class="qty">'+c.qty+'</span>'+
@@ -723,15 +709,11 @@ function downloadFile(file) {
 function previewOrder() {
   if (!cart.length) return;
   var items = cart.reduce(function(s,c){return s+c.qty;},0);
-  var price = cart.reduce(function(s,c){return s+(c.price||0)*c.qty;},0);
 
   var rowsHtml = cart.map(function(c){
-    var up = c.price||0;
     return '<tr>'+
       '<td style="padding:6px;border-bottom:1px solid #eee">'+esc(c.name)+(c.optName!=='(옵션없음)'?' <span style="color:#888;font-size:11px">/ '+esc(c.optName)+'</span>':'')+'</td>'+
       '<td style="padding:6px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">'+c.qty+'</td>'+
-      '<td style="padding:6px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">'+(up?up.toLocaleString()+'원':'-')+'</td>'+
-      '<td style="padding:6px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">'+(up?(up*c.qty).toLocaleString()+'원':'-')+'</td>'+
       '</tr>';
   }).join('');
 
@@ -785,12 +767,10 @@ function previewOrder() {
       '<thead><tr style="background:#f7f8fa">'+
         '<th style="text-align:left;padding:6px">상품</th>'+
         '<th style="text-align:right;padding:6px;white-space:nowrap">수량</th>'+
-        '<th style="text-align:right;padding:6px;white-space:nowrap">단가</th>'+
-        '<th style="text-align:right;padding:6px;white-space:nowrap">금액</th>'+
       '</tr></thead><tbody>'+rowsHtml+'</tbody>'+
     '</table>'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:700;color:#e74c3c;margin-bottom:14px">'+
-      '<span>합계 ('+items+'개)</span><span>'+price.toLocaleString()+'원</span>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:700;color:#1e3a5f;margin-bottom:14px">'+
+      '<span>합계 ('+items+'개)</span><span></span>'+
     '</div>'+
     recip+
     actionHtml+
