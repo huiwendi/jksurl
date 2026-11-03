@@ -594,17 +594,22 @@ function makeFallbackOrderNo() {
          '-'+pad(now.getHours())+pad(now.getMinutes())+pad(now.getSeconds())+rand;
 }
 
-// ezadmin 주문 업로드 양식과 동일한 컬럼 (기존 다운로드와 100% 동일)
+// ezadmin 주문 업로드 양식과 동일한 컬럼
+// ⚠️ ezadmin 은 [주문일] 컬럼이 없으면 "발주서에서 [주문일] 필드를 찾을 수 없습니다" 로 거부함
+//    → 3번째 컬럼 유지 (엑셀 날짜 일련번호 + 기본 날짜서식)
 function orderRows(orderNo) {
   var rows = [];
-  rows.push(['주문번호','상품코드/매칭코드','상품명','옵션','바코드','단가','수량','금액',
+  rows.push(['주문번호','상품코드/매칭코드','주문일','상품명','옵션','바코드','단가','수량','금액',
              '수령자명','수령자전화번호','수령자핸드폰','수령자우편번호','수령자주소','배송메세지1']);
 
+  var nowD = new Date();
+  var today = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()); // 시각 제거(정수 일련번호)
   cart.forEach(function(c) {
     var up = c.price || 0;
     rows.push([
       orderNo,
       c.skuCode || '',
+      today,
       c.name,
       c.optName === '(옵션없음)' ? '' : c.optName,
       c.barcode || '',
@@ -622,6 +627,11 @@ function orderRows(orderNo) {
   return rows;
 }
 
+function fmtDate(d) {
+  var p = function(n){ return String(n).padStart(2,'0'); };
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+
 // xlsx 파일을 base64 문자열로 생성 (이메일 첨부 + 다운로드 공용)
 function buildOrderFile(orderNo) {
   var rows = orderRows(orderNo);
@@ -630,7 +640,7 @@ function buildOrderFile(orderNo) {
   if (typeof XLSX === 'undefined') {
     var csv = rows.map(function(r) {
       return r.map(function(v) {
-        var s = String(v == null ? '' : v);
+        var s = (v instanceof Date) ? fmtDate(v) : String(v == null ? '' : v);
         return s.indexOf(',') >= 0 || s.indexOf('"') >= 0 ? '"' + s.replace(/"/g, '""') + '"' : s;
       }).join(',');
     }).join('\n');
@@ -643,7 +653,7 @@ function buildOrderFile(orderNo) {
 
   var ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [
-    {wch:22},{wch:18},{wch:35},{wch:15},{wch:14},{wch:10},{wch:8},{wch:12},
+    {wch:22},{wch:18},{wch:12},{wch:35},{wch:15},{wch:14},{wch:10},{wch:8},{wch:12},
     {wch:14},{wch:14},{wch:14},{wch:10},{wch:40},{wch:20}
   ];
   var wb = XLSX.utils.book_new();
