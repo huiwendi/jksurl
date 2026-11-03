@@ -310,7 +310,7 @@ async function autoLoad() {
 function loadOrderConfig() {
   try {
     ApiClient.order.info().then(function(r) {
-      if (r && r.success && r.recipientsCount) mailRecipientsCount = r.recipientsCount;
+      if (r && r.success && r.recipientsCount) { mailRecipientsCount = r.recipientsCount; mailAvailable = true; }
     }).catch(function(){});
   } catch(e) {}
 }
@@ -584,6 +584,7 @@ var lastOrderFile = null;     // { name, b64, mime }
 var lastOrderPayload = null;  // 재발송용
 var lastOrderNo = '';
 var mailRecipientsCount = 0;
+var mailAvailable = false;   // 백엔드가 order_config 를 지원해야 true
 
 function makeFallbackOrderNo() {
   var now = new Date();
@@ -699,9 +700,22 @@ function previewOrder() {
       '</div>';
   }
 
-  var mailNote = mailRecipientsCount > 0
+  var canMail = mailAvailable && mailRecipientsCount > 0;
+  var mailNote = canMail
     ? '발송하면 담당자 <b>' + mailRecipientsCount + '명</b>에게 주문서가 각각 이메일로 전송됩니다.'
-    : '발송하면 담당자에게 주문서가 이메일로 전송됩니다.';
+    : '이메일 발송을 준비 중입니다. 아래 <b>엑셀 다운로드</b>로 주문서를 받아 담당자에게 전달해주세요.';
+
+  var actionHtml = canMail
+    ? '<button class="btn-send" id="btnSendOrder" onclick="sendOrderEmail()">📧 주문서 이메일 발송</button>'+
+      '<div class="order-msg" id="orderSendMsg"></div>'+
+      '<div class="order-preview-actions" style="margin-top:10px">'+
+        '<button class="btn-dl" onclick="downloadPreviewFile()">📥 엑셀만 다운로드</button>'+
+        '<button class="btn-dl" onclick="closeOrderPreview()">닫기</button>'+
+      '</div>'
+    : '<button class="btn-send" onclick="downloadPreviewFile()">📥 주문서 엑셀 다운로드</button>'+
+      '<div class="order-preview-actions" style="margin-top:10px">'+
+        '<button class="btn-dl" onclick="closeOrderPreview()">닫기</button>'+
+      '</div>';
 
   var html = '<div style="padding:22px">'+
     '<h3 style="margin-bottom:8px;color:#1e3a5f">📋 주문서 확인</h3>'+
@@ -718,12 +732,7 @@ function previewOrder() {
       '<span>합계 ('+items+'개)</span><span>'+price.toLocaleString()+'원</span>'+
     '</div>'+
     recip+
-    '<button class="btn-send" id="btnSendOrder" onclick="sendOrderEmail()">📧 주문서 이메일 발송</button>'+
-    '<div class="order-msg" id="orderSendMsg"></div>'+
-    '<div class="order-preview-actions" style="margin-top:10px">'+
-      '<button class="btn-dl" onclick="downloadPreviewFile()">📥 엑셀만 다운로드</button>'+
-      '<button class="btn-dl" onclick="closeOrderPreview()">닫기</button>'+
-    '</div>'+
+    actionHtml+
     '</div>';
 
   document.getElementById('orderPreviewContent').innerHTML = html;
