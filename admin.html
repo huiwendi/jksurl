@@ -218,6 +218,23 @@ async function checkAdmin(){
     </div>
   </div>
 
+  <!-- 주문 목록 -->
+  <div class="card">
+    <div class="card-header">
+      📋 주문 목록
+      <span class="total-info" id="orderTotalInfo"></span>
+      <button class="btn btn-sm btn-gray" style="margin-left:auto" onclick="loadOrders()">🔄 새로고침</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>주문번호</th><th>고객</th><th>접수시각</th><th>품목</th><th>금액</th><th>상태</th><th>수정</th><th style="width:120px">관리</th>
+        </tr></thead>
+        <tbody id="orderTable"><tr class="loading-row"><td colspan="8">불러오는 중...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- 客户列表 -->
   <div class="card">
     <div class="card-header">
@@ -274,6 +291,7 @@ function loadConfig() {
 async function afterAdminAuth() {
   await testConnection();
   loadMailSettings();
+  loadOrders();
 }
 
 function saveConfig() {
@@ -489,6 +507,72 @@ async function saveMailSettings() {
     }
   } catch(e) { showMsg('mailMsg','err','네트워크 오류: ' + e.message); }
 }
+
+// ============ 주문 관리 ============
+const ORDER_STATUS_META = {
+  '작성중': { color: '#6b7280', bg: '#f3f4f6' },
+  '발송됨': { color: '#1d4ed8', bg: '#e0ecff' },
+  '수정중': { color: '#b45309', bg: '#fff3cd' },
+  '처리완료': { color: '#15803d', bg: '#dcfce7' },
+  '취소': { color: '#b91c1c', bg: '#fee2e2' }
+};
+
+async function loadOrders() {
+  if (!API_URL || !adminToken()) return;
+  const tbody = document.getElementById('orderTable');
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="8">불러오는 중...</td></tr>';
+  try {
+    const d = await ApiClient.admin.orders();
+    if (!d || !d.success) {
+      tbody.innerHTML = '<tr class="empty"><td colspan="8">불러오기 실패: ' + esc((d && d.error) || '') + '</td></tr>';
+      return;
+    }
+    const list = d.orders || [];
+    document.getElementById('orderTotalInfo').textContent = '총 ' + list.length + '건';
+    if (!list.length) {
+      tbody.innerHTML = '<tr class="empty"><td colspan="8">주문이 없습니다</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(o => {
+      const meta = ORDER_STATUS_META[o.status] || { color: '#555', bg: '#eee' };
+      const badge = '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:' +
+        meta.color + ';background:' + meta.bg + '">' + esc(o.status) + '</span>';
+      let action = '-';
+      if (o.status === '처리완료') {
+        action = '<button class="btn btn-sm btn-gray" data-order="' + esc(o.orderNo) + '" data-status="발송됨">되돌리기</button>';
+      } else if (o.status !== '취소') {
+        action = '<button class="btn btn-sm btn-success" data-order="' + esc(o.orderNo) + '" data-status="처리완료">✅ 처리완료</button>';
+      }
+      return '<tr>' +
+        '<td class="code">' + esc(o.orderNo) + '</td>' +
+        '<td>' + esc(o.customerName) + '</td>' +
+        '<td>' + esc(o.createdAt) + '</td>' +
+        '<td>' + (o.itemCount || 0) + '종 / ' + (o.totalQty || 0) + '개</td>' +
+        '<td>' + (o.totalAmount || 0).toLocaleString() + '원</td>' +
+        '<td>' + badge + '</td>' +
+        '<td>' + (o.revision ? o.revision + '차' : '-') + '</td>' +
+        '<td>' + action + '</td>' +
+      '</tr>';
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr class="empty"><td colspan="8">네트워크 오류: ' + esc(e.message) + '</td></tr>';
+  }
+}
+
+document.getElementById('orderTable').addEventListener('click', async function(e) {
+  const btn = e.target.closest('button[data-order]');
+  if (!btn) return;
+  const orderNo = btn.getAttribute('data-order');
+  const status = btn.getAttribute('data-status');
+  const msg = status === '처리완료'
+    ? orderNo + ' 주문을 처리완료로 표시할까요?\n(고객은 이후 수정할 수 없습니다)'
+    : orderNo + ' 주문을 발송됨으로 되돌릴까요?';
+  if (!confirm(msg)) return;
+  btn.disabled = true;
+  const d = await ApiClient.admin.setOrderStatus(orderNo, status);
+  if (d && d.success) loadOrders();
+  else { alert((d && d.error) || '변경 실패'); btn.disabled = false; }
+});
 
 // ============ 工具 ============
 function showMsg(id, type, text) {

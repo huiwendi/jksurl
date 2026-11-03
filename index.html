@@ -15,6 +15,12 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 .top-info{font-size:10px;opacity:.7;margin-left:auto;text-align:right;line-height:1.5}
 .top-info .green{color:#5f5}
 .customer-tag{background:rgba(255,255,255,.15);padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
+.nav-orders{background:rgba(255,255,255,.15);color:#fff;text-decoration:none;font-size:12px;font-weight:600;padding:6px 12px;border-radius:16px;white-space:nowrap}
+.nav-orders:hover{background:rgba(255,255,255,.3)}
+.edit-banner{background:#fff3cd;border-bottom:1px solid #f0d98a;padding:9px 14px;font-size:12px;color:#7a5a00;display:flex;align-items:center;gap:10px;flex-wrap:wrap;line-height:1.6}
+.edit-banner b{color:#8a5a00}
+.edit-banner button{background:#fff;border:1px solid #d9b64a;color:#7a5a00;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer}
+.edit-banner button:hover{background:#fff8e1}
 
 .search-sticky{position:sticky;top:0;z-index:99;background:#fff;padding:10px 14px;border-bottom:1px solid #eee;display:none;gap:6px;align-items:center}
 .search-sticky input{flex:1;min-width:0;padding:8px 10px;border:2px solid #ddd;border-radius:8px;font-size:13px;outline:none}
@@ -193,8 +199,11 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 <div class="top-bar">
   <h1>🎣 상품 선택기</h1>
   <div class="customer-tag" id="customerTag" style="display:none"></div>
+  <a class="nav-orders" href="orders.html">📋 주문내역</a>
   <div class="top-info" id="topInfo"></div>
 </div>
+
+<div class="edit-banner" id="editBanner" style="display:none"></div>
 
 <div class="search-sticky" id="searchSticky">
   <input type="text" id="searchInput" placeholder="검색: 바코드 또는 상품명..." onkeyup="doSearch()" autocomplete="off">
@@ -587,6 +596,32 @@ var lastOrderNo = '';
 var ORDER_NOTE = '주문서가 생성되었습니다. 확인 후 처리 부탁드립니다.';
 var mailRecipientsCount = 0;
 var mailAvailable = false;   // 백엔드가 order_config 를 지원해야 true
+var editingOrderNo = (function() { try { return sessionStorage.getItem('edit_order') || ''; } catch(e) { return ''; } })();
+var savingDraft = false;
+
+function custPayload() {
+  return customerInfo ? {
+    name: customerInfo.name || '',
+    phone: customerInfo.phone || '',
+    mobile: customerInfo.mobile || '',
+    zip: customerInfo.zip || '',
+    address: customerInfo.address || '',
+    memo: customerInfo.memo || ''
+  } : {};
+}
+
+function itemsPayload() {
+  return cart.map(function(c) {
+    return {
+      name: c.name,
+      optName: c.optName === '(옵션없음)' ? '' : c.optName,
+      barcode: c.barcode || '',
+      skuCode: c.skuCode || '',
+      price: c.price || 0,
+      qty: c.qty
+    };
+  });
+}
 
 function makeFallbackOrderNo() {
   var now = new Date();
@@ -712,22 +747,36 @@ function previewOrder() {
       '</div>';
   }
 
+  var isEdit = !!editingOrderNo;
   var canMail = mailAvailable && mailRecipientsCount > 0;
-  var mailNote = canMail
-    ? '발송하면 담당자 <b>' + mailRecipientsCount + '명</b>에게 주문서가 각각 이메일로 전송됩니다.'
-    : '이메일 발송을 준비 중입니다. 아래 <b>엑셀 다운로드</b>로 주문서를 받아 담당자에게 전달해주세요.';
+  var mailNote = isEdit
+    ? '주문 <b>' + esc(editingOrderNo) + '</b> 수정 중입니다. 발송하면 <b>수정된 주문서</b>로 담당자에게 전달됩니다.'
+    : (canMail
+        ? '발송하면 담당자 <b>' + mailRecipientsCount + '명</b>에게 주문서가 각각 이메일로 전송됩니다.'
+        : '이메일 발송을 준비 중입니다. 아래 <b>엑셀 다운로드</b>로 주문서를 받아 담당자에게 전달해주세요.');
 
-  var actionHtml = canMail
-    ? '<button class="btn-send" id="btnSendOrder" onclick="sendOrderEmail()">📧 주문서 이메일 발송</button>'+
+  var actionHtml;
+  if (canMail && isEdit) {
+    actionHtml = '<button class="btn-send" id="btnSendOrder" onclick="sendOrderEmail()">📧 수정된 주문서 발송</button>'+
       '<div class="order-msg" id="orderSendMsg"></div>'+
       '<div class="order-preview-actions" style="margin-top:10px">'+
         '<button class="btn-dl" onclick="downloadPreviewFile()">📥 엑셀만 다운로드</button>'+
         '<button class="btn-dl" onclick="closeOrderPreview()">닫기</button>'+
-      '</div>'
-    : '<button class="btn-send" onclick="downloadPreviewFile()">📥 주문서 엑셀 다운로드</button>'+
+      '</div>';
+  } else if (canMail) {
+    actionHtml = '<button class="btn-send" id="btnSendOrder" onclick="sendOrderEmail()">📧 주문서 이메일 발송</button>'+
+      '<div class="order-msg" id="orderSendMsg"></div>'+
+      '<div class="order-preview-actions" style="margin-top:10px">'+
+        '<button class="btn-dl" onclick="saveOrderDraft()">💾 저장만 하기</button>'+
+        '<button class="btn-dl" onclick="downloadPreviewFile()">📥 엑셀만 다운로드</button>'+
+        '<button class="btn-dl" onclick="closeOrderPreview()">닫기</button>'+
+      '</div>';
+  } else {
+    actionHtml = '<button class="btn-send" onclick="downloadPreviewFile()">📥 주문서 엑셀 다운로드</button>'+
       '<div class="order-preview-actions" style="margin-top:10px">'+
         '<button class="btn-dl" onclick="closeOrderPreview()">닫기</button>'+
       '</div>';
+  }
 
   var html = '<div style="padding:22px">'+
     '<h3 style="margin-bottom:8px;color:#1e3a5f">📋 주문서 확인</h3>'+
@@ -761,7 +810,7 @@ function setSendBtnBusy(busy, text) {
   btn.disabled = !!busy;
   btn.innerHTML = busy
     ? '<span class="spinner-sm"></span>' + (text || '발송 중...')
-    : '📧 주문서 이메일 발송';
+    : (editingOrderNo ? '📧 수정된 주문서 발송' : '📧 주문서 이메일 발송');
 }
 
 function sendMsg(text, ok) {
@@ -788,36 +837,26 @@ async function sendOrderEmail() {
   sendMsg('');
 
   try {
-    var noRes = await ApiClient.order.nextNo();
-    if (!noRes || !noRes.success) {
-      if (noRes && (noRes.code === 'SESSION_EXPIRED' || noRes.code === 'NO_SESSION')) { showSessionExpired(); return; }
-      throw new Error((noRes && noRes.error) || '주문번호를 발급받지 못했습니다');
+    var orderNo;
+    if (editingOrderNo) {
+      orderNo = editingOrderNo;
+    } else {
+      setSendBtnBusy(true, '주문 저장 중...');
+      var saveRes = await ApiClient.order.save({ customer: custPayload(), items: itemsPayload() });
+      if (!saveRes || !saveRes.success) {
+        if (saveRes && (saveRes.code === 'SESSION_EXPIRED' || saveRes.code === 'NO_SESSION')) { showSessionExpired(); return; }
+        throw new Error((saveRes && saveRes.error) || '주문을 저장하지 못했습니다');
+      }
+      orderNo = saveRes.orderNo;
     }
-    var orderNo = noRes.orderNo;
 
     setSendBtnBusy(true, '주문서 준비 중...');
     var file = buildOrderFile(orderNo);
 
     var payload = {
       orderNo: orderNo,
-      customer: customerInfo ? {
-        name: customerInfo.name || '',
-        phone: customerInfo.phone || '',
-        mobile: customerInfo.mobile || '',
-        zip: customerInfo.zip || '',
-        address: customerInfo.address || '',
-        memo: customerInfo.memo || ''
-      } : {},
-      items: cart.map(function(c) {
-        return {
-          name: c.name,
-          optName: c.optName === '(옵션없음)' ? '' : c.optName,
-          barcode: c.barcode || '',
-          skuCode: c.skuCode || '',
-          price: c.price || 0,
-          qty: c.qty
-        };
-      }),
+      customer: custPayload(),
+      items: itemsPayload(),
       file: { name: file.name, b64: file.b64 }
     };
 
@@ -829,6 +868,7 @@ async function sendOrderEmail() {
     var res = await ApiClient.order.send(payload);
 
     if (res && res.success) {
+      clearEditing();
       renderOrderSuccess(res, file);
       cart = [];
       updateCart();
@@ -845,31 +885,103 @@ async function sendOrderEmail() {
   }
 }
 
+function orderNoBoxHtml(orderNo) {
+  return '<div class="order-no-box">'+
+    '<div class="order-no-label">ORDER NO. / 주문번호</div>'+
+    '<div class="order-no-value" id="finalOrderNo">'+esc(orderNo)+'</div>'+
+    '<div class="order-no-note" id="orderNoNote">'+ORDER_NOTE+'</div>'+
+    '<button class="btn-copy" id="btnCopyNo" onclick="copyOrderNo()">복사 (주문번호 + 안내문)</button>'+
+  '</div>';
+}
+
 function renderOrderSuccess(res, file) {
   var counts = res.counts || { ok: 1, fail: 0, total: 1 };
+  var isRev = (res.revision || 0) > 0;
   var statusHtml = counts.fail > 0
     ? '<span class="warn">일부 수신자 전송 실패</span> — 성공 ' + counts.ok + ' / 전체 ' + counts.total +
       '<br>아래 파일을 담당자에게 직접 전달해주세요.'
-    : '<span class="ok">✔ ' + counts.ok + '명에게 이메일 발송 완료</span>';
+    : '<span class="ok">✔ ' + counts.ok + '명에게 이메일 발송 완료</span>' + (isRev ? ' (수정 ' + res.revision + '차)' : '');
 
   var html = '<div class="order-success">'+
     '<div class="os-icon">✅</div>'+
-    '<div class="os-title">주문이 접수되었습니다</div>'+
-    '<div class="os-sub">아래 주문번호를 복사해 두세요. 담당자가 확인 후 연락드립니다.</div>'+
-    '<div class="order-no-box">'+
-      '<div class="order-no-label">ORDER NO. / 주문번호</div>'+
-      '<div class="order-no-value" id="finalOrderNo">'+esc(res.orderNo)+'</div>'+
-      '<div class="order-no-note" id="orderNoNote">'+ORDER_NOTE+'</div>'+
-      '<button class="btn-copy" id="btnCopyNo" onclick="copyOrderNo()">복사 (주문번호 + 안내문)</button>'+
-    '</div>'+
+    '<div class="os-title">' + (isRev ? '수정된 주문서가 접수되었습니다' : '주문이 접수되었습니다') + '</div>'+
+    '<div class="os-sub">' + (isRev ? '수정 내용이 담당자에게 전달되었습니다.' : '아래 주문번호를 복사해 두세요. 담당자가 확인 후 연락드립니다.') + '</div>'+
+    orderNoBoxHtml(res.orderNo) +
     '<div class="os-status">'+statusHtml+'<br>첨부파일: '+esc(file.name)+' (ezadmin 업로드용)</div>'+
     '<div class="os-actions">'+
       (counts.fail > 0 ? '<button class="os-dl" onclick="retryOrderMail()">🔄 다시 발송</button>' : '')+
       '<button class="os-dl" onclick="downloadLastFile()">📥 파일 다시 받기</button>'+
+      '<button class="os-dl" onclick="location.href=\'orders.html\'">📋 주문내역</button>'+
       '<button class="os-close" onclick="closeOrderPreview()">닫기</button>'+
     '</div>'+
   '</div>';
 
+  document.getElementById('orderPreviewContent').innerHTML = html;
+}
+
+// ============ 초안 저장 ============
+async function saveOrderDraft() {
+  if (savingDraft || orderSending || !cart.length) return;
+  savingDraft = true;
+  sendMsg('');
+  var draftItems = itemsPayload();
+  var draftCust = custPayload();
+
+  try {
+    var res = await ApiClient.order.save({ customer: draftCust, items: draftItems });
+    if (!res || !res.success) {
+      if (res && (res.code === 'SESSION_EXPIRED' || res.code === 'NO_SESSION')) { showSessionExpired(); return; }
+      throw new Error((res && res.error) || '저장에 실패했습니다');
+    }
+    var file = buildOrderFile(res.orderNo);   // cart 가 비워지기 전에 생성
+    lastOrderNo = res.orderNo;
+    lastOrderFile = file;
+    lastOrderPayload = {
+      orderNo: res.orderNo,
+      customer: draftCust,
+      items: draftItems,
+      file: { name: file.name, b64: file.b64 }
+    };
+    renderDraftSaved(res);
+    cart = [];
+    updateCart();
+  } catch(e) {
+    sendMsg((e && e.message) ? e.message : '저장에 실패했습니다');
+  } finally {
+    savingDraft = false;
+  }
+}
+
+async function sendSavedDraft() {
+  if (orderSending || !lastOrderPayload) return;
+  orderSending = true;
+  var msgEl = document.querySelector('.os-status');
+  if (msgEl) msgEl.innerHTML = '<span class="warn">발송 중...</span>';
+  try {
+    var res = await ApiClient.order.send(lastOrderPayload);
+    if (res && res.success) { renderOrderSuccess(res, lastOrderFile); return; }
+    if (res && (res.code === 'SESSION_EXPIRED' || res.code === 'NO_SESSION')) { showSessionExpired(); return; }
+    alert((res && res.error) || '발송에 실패했습니다');
+  } catch(e) {
+    alert('발송 실패: ' + ((e && e.message) || e));
+  } finally {
+    orderSending = false;
+  }
+}
+
+function renderDraftSaved(res) {
+  var html = '<div class="order-success">'+
+    '<div class="os-icon">💾</div>'+
+    '<div class="os-title">주문이 저장되었습니다</div>'+
+    '<div class="os-sub">아직 <b>발송 전</b>입니다. 지금 발송하거나, 주문내역에서 나중에 처리할 수 있습니다.</div>'+
+    orderNoBoxHtml(res.orderNo) +
+    '<div class="os-status">주문번호만 먼저 저장되었습니다. 담당자에게는 아직 전송되지 않았습니다.</div>'+
+    '<div class="os-actions">'+
+      '<button class="os-dl" onclick="sendSavedDraft()">📧 지금 발송하기</button>'+
+      '<button class="os-dl" onclick="location.href=\'orders.html\'">📋 주문내역에서 보기</button>'+
+      '<button class="os-close" onclick="closeOrderPreview()">닫기</button>'+
+    '</div>'+
+  '</div>';
   document.getElementById('orderPreviewContent').innerHTML = html;
 }
 
@@ -937,9 +1049,65 @@ function downloadPreviewFile() {
   downloadFile(buildOrderFile(no));
 }
 
+// ============ 주문 수정 모드 ============
+async function loadEditingOrder() {
+  if (!editingOrderNo) return;
+  try {
+    var res = await ApiClient.order.detail(editingOrderNo);
+    if (!res || !res.success) { clearEditing(); return; }
+    var o = res.order;
+    if (o.status === '처리완료' || o.status === '취소') {
+      clearEditing();
+      alert('이 주문은 ' + o.status + ' 상태라 수정할 수 없습니다.');
+      return;
+    }
+    cart = (o.items || []).map(function(it) {
+      var img = '';
+      for (var i = 0; i < groups.length; i++) {
+        if (groups[i].name === it.name) {
+          img = groups[i].image || '';
+          var opt = (groups[i].options || []).filter(function(x) { return x.optName === (it.optName || '(옵션없음)'); })[0];
+          if (opt && opt.image) img = opt.image;
+          break;
+        }
+      }
+      return {
+        name: it.name, optName: it.optName || '(옵션없음)', price: it.price || 0,
+        barcode: it.barcode || '', skuCode: it.skuCode || '', image: img, qty: it.qty || 1
+      };
+    });
+    updateCart();
+    showEditBanner(o);
+  } catch(e) { clearEditing(); }
+}
+
+function showEditBanner(o) {
+  var el = document.getElementById('editBanner');
+  if (!el) return;
+  el.style.display = 'flex';
+  el.innerHTML = '✏️ <b>주문 수정 중</b> — ' + esc(o.orderNo) +
+    (o.revision > 0 ? ' (수정 ' + o.revision + '차)' : '') +
+    ' · 상품을 추가/삭제한 뒤 <b>주문서</b>에서 발송하세요.' +
+    '<button onclick="cancelEditMode()">수정 취소</button>';
+}
+
+function clearEditing() {
+  editingOrderNo = '';
+  try { sessionStorage.removeItem('edit_order'); } catch(e) {}
+  var el = document.getElementById('editBanner');
+  if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+
+function cancelEditMode() {
+  if (!confirm('주문 수정을 취소할까요? 변경 내용은 저장되지 않습니다.')) return;
+  var no = editingOrderNo;
+  clearEditing();
+  function go() { location.href = 'orders.html'; }
+  if (no) ApiClient.order.abortEdit(no).then(go, go); else go();
+}
+
 // ============ 工具 ============
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
 document.getElementById('modal').addEventListener('click', function(e) { if(e.target===this) closeModal(); });
 document.getElementById('orderPreviewModal').addEventListener('click', function(e) { if(e.target===this) closeOrderPreview(); });
 
@@ -962,6 +1130,7 @@ document.getElementById('modalContent').addEventListener('click', function(e) {
 // ============ 启动 ============
 window.addEventListener('resize', function() { updateMobileCart(); });
 autoLoad();
+loadEditingOrder();
 </script>
 </body>
 </html>

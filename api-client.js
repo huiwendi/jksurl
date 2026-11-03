@@ -147,6 +147,36 @@ var ApiClient = (function() {
       if (!_session) return { success: false, code: 'NO_SESSION', error: '로그인 세션이 없습니다. 다시 로그인해주세요.' };
       var body = Object.assign({ action: 'order_send', session: _session }, payload);
       return await post(body);
+    },
+    // 초안 저장 (메일 발송 없음)
+    save: async function(payload) {
+      if (!_session) return { success: false, code: 'NO_SESSION', error: '로그인 세션이 없습니다. 다시 로그인해주세요.' };
+      return await post(Object.assign({ action: 'order_create', session: _session }, payload));
+    },
+    // 내 주문 목록
+    list: async function() {
+      if (!_session) return { success: false, code: 'NO_SESSION', error: '로그인 세션이 없습니다. 다시 로그인해주세요.' };
+      return await post({ action: 'order_list', session: _session });
+    },
+    detail: async function(orderNo) {
+      if (!_session) return { success: false, code: 'NO_SESSION', error: '로그인 세션이 없습니다. 다시 로그인해주세요.' };
+      return await post({ action: 'order_detail', session: _session, orderNo: orderNo });
+    },
+    beginEdit: async function(orderNo) {
+      if (!_session) return { success: false, code: 'NO_SESSION', error: '로그인 세션이 없습니다. 다시 로그인해주세요.' };
+      return await post({ action: 'order_begin_edit', session: _session, orderNo: orderNo });
+    },
+    abortEdit: async function(orderNo) {
+      if (!_session) return { success: false, code: 'NO_SESSION', error: '로그인 세션이 없습니다. 다시 로그인해주세요.' };
+      return await post({ action: 'order_abort_edit', session: _session, orderNo: orderNo });
+    },
+    cancel: async function(orderNo) {
+      if (!_session) return { success: false, code: 'NO_SESSION', error: '로그인 세션이 없습니다. 다시 로그인해주세요.' };
+      return await post({ action: 'order_cancel', session: _session, orderNo: orderNo });
+    },
+    remove: async function(orderNo) {
+      if (!_session) return { success: false, code: 'NO_SESSION', error: '로그인 세션이 없습니다. 다시 로그인해주세요.' };
+      return await post({ action: 'order_delete', session: _session, orderNo: orderNo });
     }
   };
 
@@ -171,6 +201,13 @@ var ApiClient = (function() {
         fromName: fromName,
         subjectTpl: subjectTpl
       }));
+    },
+    // 주문 관리
+    orders: async function() {
+      return await post(adminBody({ action: 'admin_orders_list' }));
+    },
+    setOrderStatus: async function(orderNo, status) {
+      return await post(adminBody({ action: 'admin_order_status', orderNo: orderNo, status: status }));
     }
   };
 

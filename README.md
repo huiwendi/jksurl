@@ -12,22 +12,38 @@
 | 页面 | 地址 | 说明 |
 |------|------|------|
 | 客户登录 | `login.html` | 客户账号 + 密码（Google Sheets `customers` 表） |
-| 商品选择 / 下单 | `index.html` | 选商品 → 주문서 확인 → **이메일 발송**（或下载 .xls 兜底） |
-| 客户管理 | `admin.html` | 增删改客户 + **주문 메일 수신자 설정** |
+| 商品选择 / 下单 | `index.html` | 选商品 → 주문서 확인 → **이메일 발송** 或 **저장만 하기**（草稿） |
+| 我的订单 | `orders.html` | 草稿 / 已发送 / 修改中 / 处理完成 / 已取消；修改、取消、删除草稿 |
+| 客户管理 | `admin.html` | 增删改客户 + 邮件收件人设置 + **订单列表 / 标记处理完成** |
 | 库存管理 | `inventory-admin.html` | 商品 / 价格 / 库存维护 |
 
 ## 二、下单流程（2026-11 改版后）
 
 ```
-客户登录 → 选商品加入订单 → 点「주문서」
-   → 确认弹窗（商品/金额/收件信息/收件人数）
-   → 点「📧 주문서 이메일 발송」
-       1) 后端发 순번 주문번호  JKS-20261103-007
-       2) 前端按 ezadmin 模板生成 .xls（列与旧版完全一致）
-       3) 后端给每个负责人各发一封（同标题 / 同附件）
-       4) 订单写入 Google Sheets `orders` 表
-   → 成功页显示订单号（一键复制）+ 附件名 + 发送人数
+[直接发送]
+客户登录 → 选商品 →「주문서」→ 确认弹窗
+   →「📧 주문서 이메일 발송」
+       · 后端先建单（상태=작성중，发号 JKS-20261103-007）
+       · 前端生成 ezadmin 模板 .xls → 后端给每个负责人各发一封
+       · 记录改为 상태=발송됨，写 orders 表
+   → 成功页：订单号（一键复制）+ 韩语提示 + 「주문내역」入口
+
+[先存草稿]
+   「💾 저장만 하기」→ 建单（작성중，不发邮件）→ 可在「주문내역」里再发送
+
+[修改已发送订单]
+「주문내역」→「수정」→ 弹窗：이미 발송된 주문입니다. 수정하시겠습니까?
+   → 提示客户先通知我们（可一键复制 안내문）；勾选「담당자에게 알렸습니다」
+   → 进入修改（原商品自动带回购物车，可增/删/改数量）
+   → 再发送：标题带 (수정 N차)，正文列出 추가/삭제/수량변경，并红字提示
+     「이전 주문서는 폐기하세요」
+
+[取消 / 处理完成]
+   客户「취소 요청」→ 状态 취소 + 发 [JKS주문-취소] 邮件
+   管理页「✅ 처리완료」→ 客户只能看不能改（避免与已上传 ezadmin 的单冲突）
 ```
+
+订单状态：`작성중`（草稿）→ `발송됨` → `수정중` → `처리완료` / `취소`
 
 - 邮件标题模板：`[JKS주문] {orderNo} / {customerName} / {itemCount}건`
 - 发件人显示名：`JKS 주선코리아`
@@ -56,7 +72,7 @@
 
 > 后端代码 `api.gs` 不在本仓库（单独维护、粘贴到 Google Apps Script）。
 
-## 四、后端接口（api.gs v2026-11-03-email-1）
+## 四、后端接口（api.gs v2026-11-03-orders-2）
 
 公开：
 
@@ -67,11 +83,16 @@
 | `GET  ?action=inventory` | 商品分组数据 |
 | `GET  ?action=login&id&pw` | 旧版 GET 登录（兼容） |
 | `POST {action:'login'}` | 登录，返回 `customer` + `session` |
-| `POST {action:'order_no', session}` | 发放订单号 `JKS-YYYYMMDD-NNN` |
-| `POST {action:'order_send', session, ...}` | 生成并群发订单邮件 |
+| `POST {action:'order_no', session}` | 发放订单号 `JKS-YYYYMMDD-NNN`（旧流程兼容） |
+| `POST {action:'order_create', session, ...}` | 保存草稿（발급订单号，状态 작성중，不发邮件） |
+| `POST {action:'order_send', session, ...}` | 发送/重发/修改发送（修改时 `(수정 N차)` + 变更明细） |
+| `POST {action:'order_list' / 'order_detail', session}` | 我的订单列表 / 详情 |
+| `POST {action:'order_begin_edit' / 'order_abort_edit', session}` | 进入/退出修改（발송됨 → 수정중） |
+| `POST {action:'order_cancel' / 'order_delete', session}` | 取消订单（发 [JKS주문-취소] 邮件）/ 删除草稿 |
 
 管理员（`key` + `token`）：`admin_login` / `list` / `add` / `update` / `delete` /
-`inventory_*` / `mail_settings_get` / `mail_settings_set`
+`inventory_*` / `mail_settings_get` / `mail_settings_set` /
+**`admin_orders_list` / `admin_order_status`**
 
 ### 为什么 POST 用 text/plain
 
@@ -84,7 +105,7 @@ Google Apps Script 不支持 `application/json` 的 CORS 预检（OPTIONS），
    授权 →「배포 관리 → 편집 → 새 버전」，保持 URL 不变。
 2. **前端**：`git push` 到 `huiwendi/jksurl` 的 `master`，GitHub Pages 1 分钟生效。
 3. **自检**：打开 `<部署URL>?action=ping`，应返回
-   `{"success":true,"version":"2026-11-03-email-1"}`。
+   `{"success":true,"version":"2026-11-03-orders-2"}`。
 
 ## 六、安全 / 注意
 

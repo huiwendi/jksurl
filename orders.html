@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>주문내역</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5f5f5;color:#333}
+.top-bar{background:#1e3a5f;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.top-bar h1{font-size:17px;white-space:nowrap}
+.customer-tag{background:rgba(255,255,255,.15);padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
+.nav-link{margin-left:auto;background:rgba(255,255,255,.15);color:#fff;text-decoration:none;font-size:12px;font-weight:600;padding:6px 12px;border-radius:16px;white-space:nowrap}
+.nav-link:hover{background:rgba(255,255,255,.3)}
+.container{max-width:900px;margin:0 auto;padding:16px}
+.head-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.head-row h2{font-size:16px;color:#1e3a5f}
+.head-row .count{font-size:12px;color:#888}
+.btn-refresh{margin-left:auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:#555;cursor:pointer}
+.btn-refresh:hover{background:#f0f2f5}
+
+.order-card{background:#fff;border-radius:10px;border:1px solid #eee;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.oc-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.oc-no{font-family:Consolas,Menlo,monospace;font-size:15px;font-weight:800;color:#1e3a5f;letter-spacing:.5px}
+.badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;white-space:nowrap}
+.b-draft{background:#f3f4f6;color:#6b7280}
+.b-sent{background:#e0ecff;color:#1d4ed8}
+.b-editing{background:#fff3cd;color:#b45309}
+.b-done{background:#dcfce7;color:#15803d}
+.b-cancel{background:#fee2e2;color:#b91c1c}
+.rev{font-size:11px;color:#b45309;font-weight:600}
+.oc-meta{font-size:12px;color:#777;line-height:1.7}
+.oc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.btn{border:none;border-radius:7px;padding:8px 13px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-primary{background:#2d6a9f;color:#fff}.btn-primary:hover{background:#1e3a5f}
+.btn-green{background:#27ae60;color:#fff}.btn-green:hover{background:#219150}
+.btn-gray{background:#eef2f6;color:#44566c}.btn-gray:hover{background:#e2e8f0}
+.btn-danger{background:#fdecec;color:#c0392b}.btn-danger:hover{background:#fbdcdc}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.empty{background:#fff;border-radius:10px;border:1px dashed #ddd;padding:50px 20px;text-align:center;color:#aaa;font-size:13px;line-height:1.8}
+.empty .icon{font-size:40px;margin-bottom:8px}
+.empty a{color:#2d6a9f;font-weight:600;text-decoration:none}
+
+.loading{text-align:center;color:#999;padding:40px;font-size:13px}
+.spin{width:26px;height:26px;border:3px solid #eee;border-top-color:#2d6a9f;border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 10px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* 모달 */
+.mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;overflow-y:auto;padding:20px}
+.mask.active{display:block}
+.modal{background:#fff;border-radius:14px;max-width:620px;margin:20px auto;padding:22px;position:relative}
+.modal-close{position:absolute;top:10px;right:14px;background:none;border:none;font-size:24px;color:#999;cursor:pointer}
+.modal-close:hover{color:#333}
+.modal h3{font-size:15px;color:#1e3a5f;margin-bottom:10px}
+.m-table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
+.m-table th{background:#f7f8fa;text-align:left;padding:7px 8px;color:#666;font-weight:600}
+.m-table td{padding:7px 8px;border-bottom:1px solid #eee}
+.m-table td.num,.m-table th.num{text-align:right}
+.m-total{display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:#e74c3c;margin:10px 0}
+.m-info{background:#f7f8fa;border-radius:8px;padding:10px 12px;font-size:12px;color:#555;line-height:1.8}
+.m-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.m-actions .btn{flex:1;min-width:110px;padding:11px}
+
+/* 수정 안내 */
+.notice{background:#fff8e6;border:1px solid #f0d98a;border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.8;color:#6b4e00;margin:10px 0}
+.notice b{color:#8a5a00}
+.notice-msg{background:#fff;border:1px dashed #d9b64a;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;color:#333;user-select:all;word-break:keep-all}
+.chk-row{display:flex;align-items:center;gap:8px;font-size:12px;color:#444;margin-top:12px;cursor:pointer}
+.chk-row input{width:16px;height:16px}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:200;display:none}
+.toast.show{display:block}
+@media(max-width:600px){
+  .container{padding:12px}
+  .oc-no{font-size:14px}
+  .btn{padding:8px 11px;font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>📋 주문내역</h1>
+  <div class="customer-tag" id="customerTag" style="display:none"></div>
+  <a class="nav-link" href="index.html">🛒 상품 선택</a>
+</div>
+
+<div class="container">
+  <div class="head-row">
+    <h2>내 주문</h2>
+    <span class="count" id="orderCount"></span>
+    <button class="btn-refresh" onclick="loadOrders()">🔄 새로고침</button>
+  </div>
+  <div id="orderList"><div class="loading"><div class="spin"></div>불러오는 중...</div></div>
+</div>
+
+<!-- 상세 -->
+<div class="mask" id="detailMask">
+  <div class="modal">
+    <button class="modal-close" onclick="closeMask('detailMask')">×</button>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<!-- 수정 안내 -->
+<div class="mask" id="editNoticeMask">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="closeMask('editNoticeMask')">×</button>
+    <h3>⚠️ 이미 발송된 주문입니다</h3>
+    <div class="notice">
+      이 주문은 <b>이미 담당자에게 발송</b>되었습니다.<br>
+      수정하시겠습니까?<br><br>
+      <b>수정 전에 담당자에게 꼭 알려주세요.</b> 아래 문구를 그대로 보내주세요.
+      <div class="notice-msg" id="editNoticeMsg"></div>
+      <button class="btn btn-gray" style="margin-top:8px" onclick="copyNotice()">📋 안내문 복사</button>
+    </div>
+    <label class="chk-row"><input type="checkbox" id="chkNotified" onchange="toggleEditStart()"> 담당자에게 알렸습니다</label>
+    <div class="m-actions">
+      <button class="btn btn-gray" onclick="closeMask('editNoticeMask')">취소</button>
+      <button class="btn btn-primary" id="btnStartEdit" disabled onclick="confirmStartEdit()">수정 시작</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="api-client.js"></script>
+<script>
+(function() {
+  var cdata = sessionStorage.getItem('customer');
+  if (!cdata) { window.location.href = 'login.html'; return; }
+  try {
+    var c = JSON.parse(cdata);
+    if (!c.name) { window.location.href = 'login.html'; return; }
+    var tag = document.getElementById('customerTag');
+    tag.textContent = '👤 ' + c.name;
+    tag.style.display = 'block';
+  } catch(e) { window.location.href = 'login.html'; }
+})();
+
+ApiClient.init();
+
+var orders = [];
+var pendingEditNo = '';
+
+var STATUS_META = {
+  '작성중': { cls: 'b-draft', label: '작성중 (미발송)' },
+  '발송됨': { cls: 'b-sent', label: '발송됨' },
+  '수정중': { cls: 'b-editing', label: '수정중' },
+  '처리완료': { cls: 'b-done', label: '처리완료' },
+  '취소': { cls: 'b-cancel', label: '취소' }
+};
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function money(n) { return (Number(n)||0).toLocaleString(); }
+function badge(st) {
+  var m = STATUS_META[st] || { cls: 'b-draft', label: st || '-' };
+  return '<span class="badge ' + m.cls + '">' + esc(m.label) + '</span>';
+}
+function toast(t) {
+  var el = document.getElementById('toast');
+  el.textContent = t;
+  el.classList.add('show');
+  setTimeout(function() { el.classList.remove('show'); }, 2600);
+}
+function closeMask(id) { document.getElementById(id).classList.remove('active'); }
+
+async function loadOrders() {
+  var box = document.getElementById('orderList');
+  box.innerHTML = '<div class="loading"><div class="spin"></div>불러오는 중...</div>';
+  try {
+    var res = await ApiClient.order.list();
+    if (!res || !res.success) {
+      if (res && res.code === 'SESSION_EXPIRED') { location.href = 'login.html'; return; }
+      box.innerHTML = '<div class="empty">불러오기 실패: ' + esc(res && res.error || '알 수 없는 오류') + '</div>';
+      return;
+    }
+    orders = res.orders || [];
+    document.getElementById('orderCount').textContent = orders.length ? '(' + orders.length + '건)' : '';
+    if (!orders.length) {
+      box.innerHTML = '<div class="empty"><div class="icon">📭</div>아직 주문이 없습니다.<br><a href="index.html">상품을 선택하러 가기 →</a></div>';
+      return;
+    }
+    box.innerHTML = orders.map(renderCard).join('');
+  } catch(e) {
+    box.innerHTML = '<div class="empty">네트워크 오류: ' + esc(e.message) + '</div>';
+  }
+}
+
+function renderCard(o) {
+  var acts = [];
+  var st = o.status;
+  if (st === '작성중') {
+    acts.push('<button class="btn btn-green" onclick="openEdit(\'' + o.orderNo + '\', false)">✏️ 이어서 작성/발송</button>');
+    acts.push('<button class="btn btn-danger" onclick="deleteDraft(\'' + o.orderNo + '\')">삭제</button>');
+  } else if (st === '발송됨') {
+    acts.push('<button class="btn btn-gray" onclick="showDetail(\'' + o.orderNo + '\')">상세보기</button>');
+    acts.push('<button class="btn btn-primary" onclick="openEdit(\'' + o.orderNo + '\', true)">✏️ 수정</button>');
+    acts.push('<button class="btn btn-danger" onclick="cancelOrder(\'' + o.orderNo + '\')">취소 요청</button>');
+  } else if (st === '수정중') {
+    acts.push('<button class="btn btn-primary" onclick="openEdit(\'' + o.orderNo + '\', false)">✏️ 수정 이어서</button>');
+    acts.push('<button class="btn btn-danger" onclick="cancelOrder(\'' + o.orderNo + '\')">취소 요청</button>');
+  } else {
+    acts.push('<button class="btn btn-gray" onclick="showDetail(\'' + o.orderNo + '\')">상세보기</button>');
+  }
+
+  return '<div class="order-card">' +
+    '<div class="oc-top">' +
+      '<span class="oc-no">' + esc(o.orderNo) + '</span>' +
+      badge(st) +
+      (o.revision > 0 ? '<span class="rev">수정 ' + o.revision + '차</span>' : '') +
+    '</div>' +
+    '<div class="oc-meta">' +
+      esc(o.createdAt) +
+      (o.sentAt ? ' · 발송 ' + esc(o.sentAt) : '') +
+      ' · ' + (o.itemCount || 0) + '종 / ' + (o.totalQty || 0) + '개 · <b style="color:#e74c3c">' + money(o.totalAmount) + '원</b>' +
+    '</div>' +
+    '<div class="oc-actions">' + acts.join('') + '</div>' +
+  '</div>';
+}
+
+async function showDetail(orderNo) {
+  var res = await ApiClient.order.detail(orderNo);
+  if (!res || !res.success) { toast(res && res.error || '불러오기 실패'); return; }
+  var o = res.order;
+  var rows = (o.items || []).map(function(it) {
+    var price = Number(it.price) || 0;
+    return '<tr>' +
+      '<td>' + esc(it.name) + (it.optName ? '<br><span style="color:#888;font-size:11px">' + esc(it.optName) + '</span>' : '') + '</td>' +
+      '<td class="num">' + it.qty + '</td>' +
+      '<td class="num">' + (price ? money(price) + '원' : '-') + '</td>' +
+      '<td class="num">' + (price ? money(price * it.qty) + '원' : '-') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var cust = o.customer || {};
+  var acts = '<div class="m-actions">';
+  if (o.canEdit) acts += '<button class="btn btn-primary" onclick="closeMask(\'detailMask\');openEdit(\'' + o.orderNo + '\',' + (o.status === '발송됨') + ')">✏️ 수정</button>';
+  if (o.canCancel) acts += '<button class="btn btn-danger" onclick="closeMask(\'detailMask\');cancelOrder(\'' + o.orderNo + '\')">취소 요청</button>';
+  acts += '<button class="btn btn-gray" onclick="closeMask(\'detailMask\')">닫기</button></div>';
+
+  document.getElementById('detailContent').innerHTML =
+    '<h3>' + esc(o.orderNo) + ' ' + badge(o.status) + '</h3>' +
+    '<div class="m-info">' +
+      '접수: ' + esc(o.createdAt) + (o.sentAt ? '<br>발송: ' + esc(o.sentAt) : '') +
+      (o.revision > 0 ? '<br>수정: ' + o.revision + '차' : '') +
+      '<br>수령자: ' + esc(cust.name || '') + (cust.phone ? ' / ' + esc(cust.phone) : '') +
+      (cust.address ? '<br>주소: ' + esc(cust.address) : '') +
+      (cust.memo ? '<br>메모: ' + esc(cust.memo) : '') +
+    '</div>' +
+    '<table class="m-table"><thead><tr><th>상품</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="m-total"><span>합계 (' + (o.totalQty || 0) + '개)</span><span>' + money(o.totalAmount) + '원</span></div>' +
+    acts;
+
+  document.getElementById('detailMask').classList.add('active');
+}
+
+function openEdit(orderNo, wasSent) {
+  if (!wasSent) { doBeginEdit(orderNo); return; }
+  pendingEditNo = orderNo;
+  document.getElementById('editNoticeMsg').textContent =
+    '[' + orderNo + '] 수정 예정입니다. 기존 주문서는 처리하지 마세요.';
+  document.getElementById('chkNotified').checked = false;
+  document.getElementById('btnStartEdit').disabled = true;
+  document.getElementById('editNoticeMask').classList.add('active');
+}
+
+function toggleEditStart() {
+  document.getElementById('btnStartEdit').disabled = !document.getElementById('chkNotified').checked;
+}
+
+function copyNotice() {
+  var text = document.getElementById('editNoticeMsg').textContent;
+  function fb() {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      toast(ok ? '복사되었습니다' : '복사 실패');
+    } catch(e) { toast('복사 실패'); }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){ toast('복사되었습니다'); }, fb);
+  } else fb();
+}
+
+function confirmStartEdit() {
+  if (!pendingEditNo) return;
+  var no = pendingEditNo;
+  closeMask('editNoticeMask');
+  doBeginEdit(no);
+}
+
+async function doBeginEdit(orderNo) {
+  var res = await ApiClient.order.beginEdit(orderNo);
+  if (!res || !res.success) {
+    toast((res && res.error) || '수정할 수 없습니다');
+    if (res && (res.code === 'ORDER_DONE' || res.code === 'ORDER_CANCELED')) loadOrders();
+    return;
+  }
+  try { sessionStorage.setItem('edit_order', orderNo); } catch(e) {}
+  location.href = 'index.html';
+}
+
+async function cancelOrder(orderNo) {
+  if (!confirm('주문을 취소할까요?\n취소하면 담당자에게 취소 메일이 발송됩니다.')) return;
+  var res = await ApiClient.order.cancel(orderNo);
+  if (res && res.success) {
+    toast('취소되었습니다');
+    loadOrders();
+  } else {
+    toast((res && res.error) || '취소 실패');
+  }
+}
+
+async function deleteDraft(orderNo) {
+  if (!confirm('작성중인 주문을 삭제할까요?')) return;
+  var res = await ApiClient.order.remove(orderNo);
+  if (res && res.success) { toast('삭제되었습니다'); loadOrders(); }
+  else toast((res && res.error) || '삭제 실패');
+}
+
+window.addEventListener('focus', function() { loadOrders(); });
+loadOrders();
+</script>
+</body>
+</html>
