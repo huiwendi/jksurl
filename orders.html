@@ -145,9 +145,10 @@ var orders = [];
 var pendingEditNo = '';
 
 var STATUS_META = {
-  '작성중': { cls: 'b-draft', label: '작성중 (미발송)' },
+  '작성중': { cls: 'b-draft', label: '보류 (미발송)' },
   '발송됨': { cls: 'b-sent', label: '발송됨' },
   '수정중': { cls: 'b-editing', label: '수정중' },
+  '수정 검토': { cls: 'b-editing', label: '수정 검토 필요' },
   '처리완료': { cls: 'b-done', label: '처리완료' },
   '취소': { cls: 'b-cancel', label: '취소' }
 };
@@ -208,7 +209,7 @@ function renderCard(o) {
   return '<div class="order-card">' +
     '<div class="oc-top">' +
       '<span class="oc-no">' + esc(o.orderNo) + '</span>' +
-      badge(st) +
+      badge((st === '발송됨' && o.revision > 0) ? '수정 검토' : st) +
       (o.revision > 0 ? '<span class="rev">수정 ' + o.revision + '차</span>' : '') +
     '</div>' +
     '<div class="oc-meta">' +

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문 처리완료</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#333}
+.card{background:#fff;border-radius:16px;max-width:460px;width:100%;padding:32px 26px;box-shadow:0 8px 30px rgba(0,0,0,.08);text-align:center}
+.icon{font-size:52px;line-height:1}
+h1{font-size:20px;color:#1e3a5f;margin:10px 0 6px}
+.sub{font-size:13px;color:#777;line-height:1.7;margin-bottom:18px}
+.box{background:#f7f8fa;border-radius:10px;padding:14px 16px;text-align:left;font-size:13px;line-height:1.9;color:#555;margin-bottom:16px}
+.box b{color:#1e3a5f}
+.no{font-family:Consolas,Menlo,monospace;font-size:17px;font-weight:800;color:#1e3a5f;letter-spacing:.5px}
+.status{display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:700;margin-bottom:12px}
+.s-done{background:#dcfce7;color:#15803d}
+.s-sent{background:#e0ecff;color:#1d4ed8}
+.s-cancel{background:#fee2e2;color:#b91c1c}
+.btn{display:inline-block;border:none;border-radius:8px;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;margin:4px}
+.btn-primary{background:#2d6a9f;color:#fff}
+.btn-primary:hover{background:#1e3a5f}
+.btn-gray{background:#eef2f6;color:#44566c}
+.btn-gray:hover{background:#e2e8f0}
+.btn-danger{background:#fdecec;color:#c0392b}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.err{color:#c0392b;font-size:13px;line-height:1.7}
+.spin{width:28px;height:28px;border:3px solid #eee;border-top-color:#2d6a9f;border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.foot{font-size:11px;color:#aaa;margin-top:16px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="card" id="app">
+  <div class="spin"></div>
+  <div class="sub">처리 중...</div>
+</div>
+
+<script src="config.js"></script>
+<script>
+var API_URL = (typeof CONFIG !== 'undefined' && CONFIG.API_URL) ? CONFIG.API_URL
+  : 'https://script.google.com/macros/s/AKfycbyJ65PS1DQCc0C5wL892I3juYPtInlMi1mltmgmMHbOhAChkqUvIc7Y-mx7wvhr9Voq/exec';
+
+var app = document.getElementById('app');
+var params = new URLSearchParams(location.search);
+var token = params.get('t') || '';
+var latest = null;
+
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function money(n) { return (Number(n) || 0).toLocaleString(); }
+
+async function call(undo) {
+  var resp = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'order_done', token: token, undo: !!undo }),
+    redirect: 'follow',
+    cache: 'no-store'
+  });
+  return await resp.json();
+}
+
+function renderError(msg) {
+  app.innerHTML = '<div class="icon">⚠️</div><h1>처리할 수 없습니다</h1>' +
+    '<div class="err" style="margin-bottom:16px">' + esc(msg) + '</div>' +
+    '<div class="foot">메일의 링크가 만료되었거나 잘못되었습니다.<br>주문내역/관리자 페이지에서 직접 처리해주세요.</div>';
+}
+
+function renderOrder(res) {
+  var o = res.order || {};
+  latest = o;
+  var statusMeta = {
+    '처리완료': { cls: 's-done', label: '처리완료' },
+    '발송됨': { cls: 's-sent', label: '발송됨 (처리 대기)' },
+    '취소': { cls: 's-cancel', label: '취소' },
+    '보류': { cls: 's-sent', label: '보류' },
+    '수정중': { cls: 's-sent', label: '수정중' }
+  }[o.status] || { cls: 's-sent', label: o.status || '-' };
+
+  var undone = !!res.undone;
+  app.innerHTML =
+    '<div class="icon">' + (undone ? '↩️' : '✅') + '</div>' +
+    '<h1>' + (undone ? '처리완료를 되돌렸습니다' : '처리완료로 표시했습니다') + '</h1>' +
+    '<div class="sub">' + (undone ? '다시 처리 대기 상태로 돌아갔습니다.' : '이 주문은 이제 처리완료 상태입니다.') + '</div>' +
+    '<div class="box">' +
+      '<div class="no">' + esc(o.orderNo) + '</div>' +
+      '<span class="status ' + statusMeta.cls + '">' + esc(statusMeta.label) + '</span>' +
+      '<div>고객: <b>' + esc(o.customerName) + '</b></div>' +
+      '<div>품목: ' + (o.itemCount || 0) + '종 / ' + (o.totalQty || 0) + '개 · <b>' + money(o.totalAmount) + '원</b></div>' +
+      (o.revision > 0 ? '<div>수정: ' + o.revision + '차</div>' : '') +
+      '<div style="font-size:12px;color:#999;margin-top:4px">' + esc(res.at || '') + ' (KST)</div>' +
+    '</div>' +
+    (undone
+      ? '<button class="btn btn-primary" id="redoBtn">✅ 다시 처리완료로</button>'
+      : '<button class="btn btn-gray" id="undoBtn">↩️ 잘못 눌렀어요 (되돌리기)</button>') +
+    '<div class="foot">이 페이지는 메일 링크 전용입니다. 로그인 없이 동작합니다.</div>';
+
+  var undoBtn = document.getElementById('undoBtn');
+  if (undoBtn) undoBtn.addEventListener('click', function() { run(true); });
+  var redoBtn = document.getElementById('redoBtn');
+  if (redoBtn) redoBtn.addEventListener('click', function() { run(false); });
+}
+
+async function run(undo) {
+  try {
+    var res = await call(undo);
+    if (res && res.success) renderOrder(res);
+    else renderError((res && res.error) || '알 수 없는 오류');
+  } catch (e) {
+    renderError('네트워크 오류: ' + ((e && e.message) || e));
+  }
+}
+
+if (!token) renderError('링크에 주문 토큰이 없습니다.');
+else run(false);
+</script>
+</body>
+</html>

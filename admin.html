@@ -510,11 +510,12 @@ async function saveMailSettings() {
 
 // ============ 주문 관리 ============
 const ORDER_STATUS_META = {
-  '작성중': { color: '#6b7280', bg: '#f3f4f6' },
-  '발송됨': { color: '#1d4ed8', bg: '#e0ecff' },
-  '수정중': { color: '#b45309', bg: '#fff3cd' },
-  '처리완료': { color: '#15803d', bg: '#dcfce7' },
-  '취소': { color: '#b91c1c', bg: '#fee2e2' }
+  '작성중': { color: '#6b7280', bg: '#f3f4f6', label: '보류 (미발송)' },
+  '발송됨': { color: '#1d4ed8', bg: '#e0ecff', label: '발송됨' },
+  '수정 검토': { color: '#b45309', bg: '#fff3cd', label: '수정 검토 필요' },
+  '수정중': { color: '#b45309', bg: '#fff3cd', label: '수정중' },
+  '처리완료': { color: '#15803d', bg: '#dcfce7', label: '처리완료' },
+  '취소': { color: '#b91c1c', bg: '#fee2e2', label: '취소' }
 };
 
 async function loadOrders() {
@@ -534,9 +535,10 @@ async function loadOrders() {
       return;
     }
     tbody.innerHTML = list.map(o => {
-      const meta = ORDER_STATUS_META[o.status] || { color: '#555', bg: '#eee' };
+      const dispStatus = (o.status === '발송됨' && o.revision > 0) ? '수정 검토' : o.status;
+      const meta = ORDER_STATUS_META[dispStatus] || { color: '#555', bg: '#eee', label: dispStatus };
       const badge = '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:' +
-        meta.color + ';background:' + meta.bg + '">' + esc(o.status) + '</span>';
+        meta.color + ';background:' + meta.bg + '">' + esc(meta.label || dispStatus) + '</span>';
       let action = '-';
       if (o.status === '처리완료') {
         action = '<button class="btn btn-sm btn-gray" data-order="' + esc(o.orderNo) + '" data-status="발송됨">되돌리기</button>';

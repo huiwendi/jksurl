@@ -14,6 +14,7 @@
 | 客户登录 | `login.html` | 客户账号 + 密码（Google Sheets `customers` 表） |
 | 商品选择 / 下单 | `index.html` | 选商品 → 주문서 확인 → **이메일 발송** 或 **저장만 하기**（草稿） |
 | 我的订单 | `orders.html` | 草稿 / 已发送 / 修改中 / 处理完成 / 已取消；修改、取消、删除草稿 |
+| 一键完成页 | `done.html` | 邮件里的「✅ 처리완료」链接打开此页，**无需登录**点击即完成，可撤销 |
 | 客户管理 | `admin.html` | 增删改客户 + 邮件收件人设置 + **订单列表 / 标记处理完成** |
 | 库存管理 | `inventory-admin.html` | 商品 / 价格 / 库存维护 |
 
@@ -72,7 +73,7 @@
 
 > 后端代码 `api.gs` 不在本仓库（单独维护、粘贴到 Google Apps Script）。
 
-## 四、后端接口（api.gs v2026-11-03-orders-2）
+## 四、后端接口（api.gs v2026-11-03-orders-3）
 
 公开：
 
@@ -89,6 +90,7 @@
 | `POST {action:'order_list' / 'order_detail', session}` | 我的订单列表 / 详情 |
 | `POST {action:'order_begin_edit' / 'order_abort_edit', session}` | 进入/退出修改（발송됨 → 수정중） |
 | `POST {action:'order_cancel' / 'order_delete', session}` | 取消订单（发 [JKS주문-취소] 邮件）/ 删除草稿 |
+| `POST {action:'order_done', token[, undo]}` | **邮件里的「처리완료」链接**：无需登录，按 token 改状态 |
 
 管理员（`key` + `token`）：`admin_login` / `list` / `add` / `update` / `delete` /
 `inventory_*` / `mail_settings_get` / `mail_settings_set` /
@@ -105,7 +107,7 @@ Google Apps Script 不支持 `application/json` 的 CORS 预检（OPTIONS），
    授权 →「배포 관리 → 편집 → 새 버전」，保持 URL 不变。
 2. **前端**：`git push` 到 `huiwendi/jksurl` 的 `master`，GitHub Pages 1 分钟生效。
 3. **自检**：打开 `<部署URL>?action=ping`，应返回
-   `{"success":true,"version":"2026-11-03-orders-2"}`。
+   `{"success":true,"version":"2026-11-03-orders-3"}`。
 
 ## 六、安全 / 注意
 
@@ -113,3 +115,4 @@ Google Apps Script 不支持 `application/json` 的 CORS 预检（OPTIONS），
   客户端无法指定收件地址（避免被当发信跳板）。
 - 同一 session 每小时最多 10 单；Gmail 免费账号每天 100 封额度（3 人 = 3 封/单）。
 - 客户账号密码在 Sheets 中以 `sha256:<salt>:<hash>` 存储，旧密码登录后自动升级。
+

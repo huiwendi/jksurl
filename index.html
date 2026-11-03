@@ -752,7 +752,7 @@ function previewOrder() {
   var mailNote = isEdit
     ? '주문 <b>' + esc(editingOrderNo) + '</b> 수정 중입니다. 발송하면 <b>수정된 주문서</b>로 담당자에게 전달됩니다.'
     : (canMail
-        ? '발송하면 담당자 <b>' + mailRecipientsCount + '명</b>에게 주문서가 각각 이메일로 전송됩니다.'
+        ? '발송하면 담당자 <b>' + mailRecipientsCount + '명</b>에게 주문서가 각각 이메일로 전송됩니다. 나중에 보내려면 <b>보류</b>를 선택하세요.'
         : '이메일 발송을 준비 중입니다. 아래 <b>엑셀 다운로드</b>로 주문서를 받아 담당자에게 전달해주세요.');
 
   var actionHtml;
@@ -767,7 +767,7 @@ function previewOrder() {
     actionHtml = '<button class="btn-send" id="btnSendOrder" onclick="sendOrderEmail()">📧 주문서 이메일 발송</button>'+
       '<div class="order-msg" id="orderSendMsg"></div>'+
       '<div class="order-preview-actions" style="margin-top:10px">'+
-        '<button class="btn-dl" onclick="saveOrderDraft()">💾 저장만 하기</button>'+
+        '<button class="btn-dl" onclick="saveOrderDraft()">⏸ 보류 (저장만)</button>'+
         '<button class="btn-dl" onclick="downloadPreviewFile()">📥 엑셀만 다운로드</button>'+
         '<button class="btn-dl" onclick="closeOrderPreview()">닫기</button>'+
       '</div>';
@@ -971,11 +971,11 @@ async function sendSavedDraft() {
 
 function renderDraftSaved(res) {
   var html = '<div class="order-success">'+
-    '<div class="os-icon">💾</div>'+
-    '<div class="os-title">주문이 저장되었습니다</div>'+
-    '<div class="os-sub">아직 <b>발송 전</b>입니다. 지금 발송하거나, 주문내역에서 나중에 처리할 수 있습니다.</div>'+
+    '<div class="os-icon">⏸</div>'+
+    '<div class="os-title">주문을 보류했습니다</div>'+
+    '<div class="os-sub">아직 <b>발송 전</b>입니다. 주문내역에서 언제든 발송하거나 수정할 수 있습니다.</div>'+
     orderNoBoxHtml(res.orderNo) +
-    '<div class="os-status">주문번호만 먼저 저장되었습니다. 담당자에게는 아직 전송되지 않았습니다.</div>'+
+    '<div class="os-status">주문번호만 먼저 저장(보류)되었습니다. 담당자에게는 아직 전송되지 않았습니다.</div>'+
     '<div class="os-actions">'+
       '<button class="os-dl" onclick="sendSavedDraft()">📧 지금 발송하기</button>'+
       '<button class="os-dl" onclick="location.href=\'orders.html\'">📋 주문내역에서 보기</button>'+
