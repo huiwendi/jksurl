@@ -151,6 +151,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 .order-no-box{background:#f2f7fb;border:1px dashed #2d6a9f;border-radius:10px;padding:14px;margin-bottom:16px}
 .order-no-label{font-size:10px;color:#888;letter-spacing:1px;margin-bottom:5px}
 .order-no-value{font-size:21px;font-weight:800;color:#1e3a5f;letter-spacing:1px;word-break:break-all;font-family:Consolas,Menlo,monospace;user-select:all}
+.order-no-note{font-size:12px;color:#444;margin-top:10px;line-height:1.7;border-top:1px dashed #cfdce8;padding-top:9px;user-select:all}
 .btn-copy{margin-top:10px;background:#2d6a9f;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer}
 .btn-copy:hover{background:#1e3a5f}
 .btn-copy.ok{background:#27ae60}
@@ -583,6 +584,7 @@ var orderSending = false;
 var lastOrderFile = null;     // { name, b64, mime }
 var lastOrderPayload = null;  // 재발송용
 var lastOrderNo = '';
+var ORDER_NOTE = '주문서가 생성되었습니다. 확인 후 처리 부탁드립니다.';
 var mailRecipientsCount = 0;
 var mailAvailable = false;   // 백엔드가 order_config 를 지원해야 true
 
@@ -857,7 +859,8 @@ function renderOrderSuccess(res, file) {
     '<div class="order-no-box">'+
       '<div class="order-no-label">ORDER NO. / 주문번호</div>'+
       '<div class="order-no-value" id="finalOrderNo">'+esc(res.orderNo)+'</div>'+
-      '<button class="btn-copy" id="btnCopyNo" onclick="copyOrderNo()">주문번호 복사</button>'+
+      '<div class="order-no-note" id="orderNoNote">'+ORDER_NOTE+'</div>'+
+      '<button class="btn-copy" id="btnCopyNo" onclick="copyOrderNo()">복사 (주문번호 + 안내문)</button>'+
     '</div>'+
     '<div class="os-status">'+statusHtml+'<br>첨부파일: '+esc(file.name)+' (ezadmin 업로드용)</div>'+
     '<div class="os-actions">'+
@@ -872,17 +875,18 @@ function renderOrderSuccess(res, file) {
 
 function copyOrderNo() {
   var no = lastOrderNo || '';
+  var text = no + '\n' + ORDER_NOTE;
   var btn = document.getElementById('btnCopyNo');
   function done(ok) {
     if (!btn) return;
     btn.textContent = ok ? '복사됨 ✓' : '복사 실패 — 길게 눌러 선택';
     btn.className = 'btn-copy' + (ok ? ' ok' : '');
-    if (ok) setTimeout(function(){ btn.textContent = '주문번호 복사'; btn.className = 'btn-copy'; }, 2000);
+    if (ok) setTimeout(function(){ btn.textContent = '복사 (주문번호 + 안내문)'; btn.className = 'btn-copy'; }, 2000);
   }
   function fallback() {
     try {
       var ta = document.createElement('textarea');
-      ta.value = no;
+      ta.value = text;
       ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0';
       document.body.appendChild(ta);
       ta.focus(); ta.select();
@@ -892,7 +896,7 @@ function copyOrderNo() {
     } catch(e) { done(false); }
   }
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(no).then(function(){ done(true); }, fallback);
+    navigator.clipboard.writeText(text).then(function(){ done(true); }, fallback);
   } else {
     fallback();
   }
