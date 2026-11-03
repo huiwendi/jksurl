@@ -1,96 +1,89 @@
-# 👥 客户 + 📦 库存管理系统（Google Sheets + GitHub Pages）
+# JKS 고객 주문 시스템 (GitHub Pages + Google Apps Script)
 
-完全免费！Google Sheets 当数据库，GitHub Pages 当服务器。
+韩国客户在线选货、下单，订单以 **邮件 + 附件（ezadmin 上传用 .xls）** 的形式
+同时发给多位负责人，客户页面显示可复制的订单号。
 
-## 📁 文件说明
+线上地址：<https://huiwendi.github.io/jksurl/login.html>
+
+---
+
+## 一、页面
+
+| 页面 | 地址 | 说明 |
+|------|------|------|
+| 客户登录 | `login.html` | 客户账号 + 密码（Google Sheets `customers` 表） |
+| 商品选择 / 下单 | `index.html` | 选商品 → 주문서 확인 → **이메일 발송**（或下载 .xls 兜底） |
+| 客户管理 | `admin.html` | 增删改客户 + **주문 메일 수신자 설정** |
+| 库存管理 | `inventory-admin.html` | 商品 / 价格 / 库存维护 |
+
+## 二、下单流程（2026-11 改版后）
+
+```
+客户登录 → 选商品加入订单 → 点「주문서」
+   → 确认弹窗（商品/金额/收件信息/收件人数）
+   → 点「📧 주문서 이메일 발송」
+       1) 后端发 순번 주문번호  JKS-20261103-007
+       2) 前端按 ezadmin 模板生成 .xls（列与旧版完全一致）
+       3) 后端给每个负责人各发一封（同标题 / 同附件）
+       4) 订单写入 Google Sheets `orders` 表
+   → 成功页显示订单号（一键复制）+ 附件名 + 发送人数
+```
+
+- 邮件标题模板：`[JKS주문] {orderNo} / {customerName} / {itemCount}건`
+- 发件人显示名：`JKS 주선코리아`
+- 收件人：在 `admin.html` →「📧 주문 메일 수신자 설정」维护（默认 3 个）
+- 邮件正文：订单号、客户、收件信息、商品明细、合计金额、
+  **附件 = ezadmin 주문 업로드用 .xls**（直接上传，不要改名/改内容）
+- 失败兜底：邮件发不出去时页面提示错误，仍可点「엑셀만 다운로드」手动处理；
+  部分收件人失败时可「다시 발송」
+
+## 三、文件
 
 | 文件 | 说明 |
 |------|------|
-| pi.gs | Google Apps Script 统一后端（客户 + 库存 API） |
-| dmin.html | 客户管理页面（增删改查） |
-| inventory-admin.html | 库存管理页面（商品增删改查、搜索过滤） |
-| pi-client.js | 前端 JS 库 (ApiClient.customer.* / ApiClient.inventory.*) |
-| customer-api.js | 旧版客户 API（兼容用） |
+| `login.html` | 客户登录（POST 登录，session 存 sessionStorage） |
+| `index.html` | 商品选择 + 订单确认 + 邮件发送 / 下载 |
+| `api-client.js` | 前端 API 客户端（`customer` / `order` / `inventory` / `admin`） |
+| `config.js` | 前端配置（API URL + API Key；值为公开信息） |
+| `admin.html` | 客户管理 + 邮件收件人设置 |
+| `inventory-admin.html` | 库存管理 |
+| `customer-api.js` | 旧版客户端（保留，兼容缓存页面） |
 
-## 🚀 部署步骤
+> 后端代码 `api.gs` 不在本仓库（单独维护、粘贴到 Google Apps Script）。
 
-### 第一步：Google Sheets + Apps Script（5 分钟）
+## 四、后端接口（api.gs v2026-11-03-email-1）
 
-1. 打开 [Google Sheets](https://sheets.google.com)，**新建空白表格**
-2. 菜单：**扩展程序 → Apps Script**
-3. 把 pi.gs 的内容**全部复制粘贴**进去
-4. 可修改 API_KEY（默认值：jksurl-customer-2025）
-5. 保存（Ctrl+S）→ 点右上角 **「部署」→「新部署」**
-   - 类型：**网页应用**
-   - 执行身份：**我**
-   - 访问权限：**所有人**
-6. **复制 URL**（类似 https://script.google.com/macros/s/XXXX/exec）
-7. 首次运行会弹出权限确认，点 **「允许」**
+公开：
 
-部署后会自动创建两个 Sheet：
-- customers — 客户数据
-- inventory — 库存数据
+| 请求 | 说明 |
+|------|------|
+| `GET  ?action=ping` | 版本自检 |
+| `GET  ?action=order_config` | 返回收件人数（不暴露地址） |
+| `GET  ?action=inventory` | 商品分组数据 |
+| `GET  ?action=login&id&pw` | 旧版 GET 登录（兼容） |
+| `POST {action:'login'}` | 登录，返回 `customer` + `session` |
+| `POST {action:'order_no', session}` | 发放订单号 `JKS-YYYYMMDD-NNN` |
+| `POST {action:'order_send', session, ...}` | 生成并群发订单邮件 |
 
-### 第二步：GitHub Pages 部署（3 分钟）
+管理员（`key` + `token`）：`admin_login` / `list` / `add` / `update` / `delete` /
+`inventory_*` / `mail_settings_get` / `mail_settings_set`
 
-1. GitHub 新建仓库
-2. 把 customer-system 文件夹里的所有文件上传到仓库
-3. Settings → Pages → Source 选 **main** → Save
-4. 1-2 分钟后得到地址：https://你的用户名.github.io/仓库名/
+### 为什么 POST 用 text/plain
 
-### 第三步：开始使用
+Google Apps Script 不支持 `application/json` 的 CORS 预检（OPTIONS），
+所以前端用 `Content-Type: text/plain` 提交 JSON 字符串，后端照常 `JSON.parse`。
 
-| 功能 | 访问地址 |
-|------|---------|
-| 客户管理 | https://你的用户名.github.io/仓库名/admin.html |
-| 库存管理 | https://你的用户名.github.io/仓库名/inventory-admin.html |
+## 五、部署 / 更新
 
-打开页面 → 填入 API URL 和 Key → 保存并连接 → 完成！
+1. **后端**：把新版 `api.gs` 粘贴到 Apps Script → 保存 → 运行 `sendTestMail()`
+   授权 →「배포 관리 → 편집 → 새 버전」，保持 URL 不变。
+2. **前端**：`git push` 到 `huiwendi/jksurl` 的 `master`，GitHub Pages 1 分钟生效。
+3. **自检**：打开 `<部署URL>?action=ping`，应返回
+   `{"success":true,"version":"2026-11-03-email-1"}`。
 
-## 📊 Google Sheets 表结构
+## 六、安全 / 注意
 
-### customers（客户表）
-
-| A | B | C | D | E | F | G | H | I | J |
-|---|---|---|---|---|---|---|---|---|---|
-| id | password | name | phone | mobile | zip | address | memo | code | active |
-
-### inventory（库存表）
-
-| A | B | C | D | E | F | G | H | I | J |
-|---|---|---|---|---|---|---|---|---|---|
-| 商品名 | 选项 | 条码 | 销售价 | 正常库存 | 图片URL | 注册日期 | 代表商品代码 | 商品代码 | 启用 |
-
-## 🔗 接入现有 index.html
-
-让现有的 index.html 从 Google Sheets 读取库存数据：
-
-`html
-<!-- 在 <head> 中引入 -->
-<script src="customer-system/api-client.js"></script>
-<script>
-ApiClient.init('https://script.google.com/macros/s/XXXX/exec');
-
-// 替代原有的 autoLoad() 函数
-async function loadFromSheets() {
-  const data = await ApiClient.inventory.getGroups();
-  if (data.success) {
-    groups = data.groups;
-    filteredGroups = [...groups];
-    renderGrid();
-  }
-}
-loadFromSheets();
-</script>
-`
-
-getGroups() 返回的 JSON 格式和现有代码中 parseData() 生成的 groups 数组**完全一致**，无需改动其他逻辑。
-
-## 💰 费用：0 元
-
-| 服务 | 免费额度 |
-|------|---------|
-| Google Sheets | 1000 万单元格 |
-| Google Apps Script | 每天 2 万次调用 |
-| GitHub Pages | 每月 100GB 流量 |
-| **合计** | **0 元** |
+- 订单接口必须带登录 `session`（6 小时），且只发给服务端配置的收件人，
+  客户端无法指定收件地址（避免被当发信跳板）。
+- 同一 session 每小时最多 10 单；Gmail 免费账号每天 100 封额度（3 人 = 3 封/单）。
+- 客户账号密码在 Sheets 中以 `sha256:<salt>:<hash>` 存储，旧密码登录后自动升级。

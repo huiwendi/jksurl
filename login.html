@@ -15,6 +15,10 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:lin
 .pw-wrap label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:6px}
 .pw-wrap input{width:100%;padding:14px 16px;border:2px solid #ddd;border-radius:10px;font-size:15px;outline:none}
 .pw-wrap input:focus{border-color:#2d6a9f}
+.pw-input-wrap{position:relative}
+.pw-input-wrap input{padding-right:44px}
+.pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:#999;padding:4px;line-height:1}
+.pw-toggle:hover{color:#2d6a9f}
 .login-btn{width:100%;padding:14px;background:#2d6a9f;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px}
 .login-btn:hover{background:#1e3a5f}
 .login-btn:disabled{background:#aaa;cursor:not-allowed}
@@ -36,16 +40,27 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:lin
 
   <div class="pw-wrap">
     <label>비밀번호</label>
-    <input type="password" id="pwInput" placeholder="비밀번호" onkeyup="if(event.key==='Enter')doLogin()" autocomplete="off">
+    <div class="pw-input-wrap">
+      <input type="password" id="pwInput" placeholder="비밀번호" onkeyup="if(event.key==='Enter')doLogin()" autocomplete="off">
+      <button type="button" class="pw-toggle" onclick="togglePw('pwInput',this)" tabindex="-1" aria-label="비밀번호 표시/숨김">👁</button>
+    </div>
   </div>
 
   <button class="login-btn" id="loginBtn" onclick="doLogin()">로그인</button>
   <div class="error" id="loginError"></div>
 </div>
 
+<script src="config.js"></script>
 <script src="api-client.js"></script>
 <script>
-ApiClient.init('https://script.google.com/macros/s/AKfycbyJ65PS1DQCc0C5wL892I3juYPtInlMi1mltmgmMHbOhAChkqUvIc7Y-mx7wvhr9Voq/exec', 'jksurl-customer-2025');
+ApiClient.init(); // config.js 의 CONFIG(API_URL, API_KEY) 사용
+
+function togglePw(id, btn) {
+  var inp = document.getElementById(id);
+  if (!inp) return;
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
 
 async function doLogin() {
   var id = document.getElementById('idInput').value.trim();

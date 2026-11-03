@@ -99,6 +99,14 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 .loading{text-align:center;padding:60px 20px;color:#888}
 .spin{border:3px solid #eee;border-top:3px solid #2d6a9f;border-radius:50%;width:36px;height:36px;animation:spin .8s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* 스켈레톤 플레이스홀더 (로딩 중) */
+.skeleton-card{pointer-events:none}
+.sk-img{width:100%;height:180px;background:#eee}
+.sk-body{padding:9px 11px 12px}
+.sk-line{height:10px;background:#eee;border-radius:4px;margin:6px 0}
+.sk-line.short{width:60%}
+@keyframes skPulse{0%,100%{opacity:1}50%{opacity:.5}}
+.skeleton-card .sk-img,.skeleton-card .sk-line{animation:skPulse 1.2s ease-in-out infinite}
 .empty-state{text-align:center;padding:60px 20px;color:#aaa}
 .empty-state .icon{font-size:48px;margin-bottom:10px}
 .empty-state p{font-size:14px;margin:4px 0}
@@ -126,11 +134,40 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 .cm-item-qty .qty{font-size:12px;font-weight:600;min-width:16px;text-align:center}
 .cm-item-del{color:#e74c3c;cursor:pointer;font-size:11px;margin-left:4px;background:none;border:none}
 
+/* ===== 주문서 이메일 발송 ===== */
+.btn-send{width:100%;background:#27ae60;color:#fff;border:none;border-radius:8px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-send:hover{background:#219150}
+.btn-send:disabled{background:#9fd8b8;cursor:not-allowed}
+.order-preview-actions{display:flex;gap:8px}
+.order-preview-actions .btn-dl{flex:1;background:#eef2f6;color:#1e3a5f;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer}
+.order-preview-actions .btn-dl:hover{background:#e2e8f0}
+.preview-note{font-size:11px;color:#888;line-height:1.7;margin:0 0 12px;background:#f7f8fa;border-radius:8px;padding:9px 11px}
+.order-msg{font-size:12px;color:#e74c3c;margin-top:8px;min-height:16px;line-height:1.6}
+.spinner-sm{width:14px;height:14px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+.order-success{padding:24px 20px;text-align:center}
+.os-icon{font-size:44px;line-height:1}
+.os-title{font-size:19px;font-weight:700;color:#1e3a5f;margin:6px 0 4px}
+.os-sub{font-size:12px;color:#777;margin-bottom:16px}
+.order-no-box{background:#f2f7fb;border:1px dashed #2d6a9f;border-radius:10px;padding:14px;margin-bottom:16px}
+.order-no-label{font-size:10px;color:#888;letter-spacing:1px;margin-bottom:5px}
+.order-no-value{font-size:21px;font-weight:800;color:#1e3a5f;letter-spacing:1px;word-break:break-all;font-family:Consolas,Menlo,monospace;user-select:all}
+.btn-copy{margin-top:10px;background:#2d6a9f;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-copy:hover{background:#1e3a5f}
+.btn-copy.ok{background:#27ae60}
+.os-status{font-size:12px;color:#555;background:#f7f8fa;border-radius:8px;padding:10px 12px;text-align:left;line-height:1.7;margin-bottom:14px;word-break:break-all}
+.os-status .ok{color:#27ae60;font-weight:600}
+.os-status .warn{color:#e67e22;font-weight:600}
+.os-actions{display:flex;gap:8px;flex-wrap:wrap}
+.os-actions button{flex:1;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;min-width:110px}
+.os-close{background:#eef2f6;color:#555}
+.os-dl{background:#f0f6ff;color:#1e3a5f}
+
 @media(max-width:768px){
   .cart-area{display:none}
   .cart-mobile{display:flex}
   .grid{grid-template-columns:repeat(2,1fr);gap:8px}
   .card-img{height:140px}
+  .sk-img{height:140px}
   .card-body{padding:7px 9px 10px}
   .card-name{font-size:10px;min-height:27px}
   .modal-top{flex-direction:column;align-items:center}
@@ -186,7 +223,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
       <div class="cart-total-row">품목 수 <span id="cartItemCount">0</span>개</div>
       <div class="cart-total-row total">합계 <span id="totalPrice">-</span></div>
       <div class="cart-actions">
-        <button class="btn-order" onclick="exportOrder()">📋 주문서</button>
+        <button class="btn-order" onclick="previewOrder()">📋 주문서</button>
         <button class="btn-clear" onclick="clearCart()">비우기</button>
       </div>
     </div>
@@ -198,7 +235,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
     <div class="cm-label">🛒 주문</div>
     <div><span class="cm-count" id="cmCount">0</span><span class="cm-total" id="cmTotal"></span></div>
   </div>
-  <button class="cm-btn" onclick="exportOrder()">📋 주문서</button>
+  <button class="cm-btn" onclick="previewOrder()">📋 주문서</button>
   <button class="cm-clear" onclick="clearCart()">🗑️</button>
 </div>
 <div class="cm-panel" id="cmPanel">
@@ -212,6 +249,15 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
   </div>
 </div>
 
+<!-- 주문서 미리보기 모달 -->
+<div class="modal-overlay" id="orderPreviewModal">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="closeOrderPreview()">×</button>
+    <div id="orderPreviewContent"></div>
+  </div>
+</div>
+
+<script src="config.js"></script>
 <script src="api-client.js"></script>
 <script>
 // ===== 로그인 확인 =====
@@ -240,7 +286,9 @@ let cart = [];
 
 // ============ 从 Google Sheets 加载库存 ============
 async function autoLoad() {
-  ApiClient.init('https://script.google.com/macros/s/AKfycbyJ65PS1DQCc0C5wL892I3juYPtInlMi1mltmgmMHbOhAChkqUvIc7Y-mx7wvhr9Voq/exec', 'jksurl-customer-2025');
+  ApiClient.init(); // config.js 의 CONFIG(API_URL, API_KEY) 사용
+  renderSkeletons();
+  loadOrderConfig();
   try {
     var data = await ApiClient.inventory.getGroups();
     if (data.success && data.groups && data.groups.length > 0) {
@@ -248,7 +296,6 @@ async function autoLoad() {
       filteredGroups = [...groups];
       document.getElementById('topInfo').innerHTML = '<span class="green">●</span> 서버 데이터 로드됨';
       document.getElementById('searchSticky').style.display = 'flex';
-      document.getElementById('loading').style.display = 'none';
       filterAndSort();
     } else {
       showEmpty('서버에서 데이터를 불러오지 못했습니다');
@@ -259,8 +306,26 @@ async function autoLoad() {
   }
 }
 
+// 주문 메일 수신자 인원수 조회 (주소는 노출되지 않음)
+function loadOrderConfig() {
+  try {
+    ApiClient.order.info().then(function(r) {
+      if (r && r.success && r.recipientsCount) mailRecipientsCount = r.recipientsCount;
+    }).catch(function(){});
+  } catch(e) {}
+}
+
+function renderSkeletons() {
+  var html = '<div class="grid">';
+  for (var i = 0; i < 8; i++) {
+    html += '<div class="card skeleton-card"><div class="sk-img"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line"></div></div></div>';
+  }
+  html += '</div>';
+  document.getElementById('productArea').innerHTML = html;
+}
+
 function showEmpty(msg) {
-  document.getElementById('loading').innerHTML = '<div class="empty-state"><div class="icon">📁</div><p>'+msg+'</p></div>';
+  document.getElementById('productArea').innerHTML = '<div class="empty-state"><div class="icon">📁</div><p>'+msg+'</p></div>';
   document.getElementById('topInfo').textContent = '데이터 없음';
 }
 
@@ -329,7 +394,7 @@ function renderGrid() {
     var prices = g.options.filter(function(o){return o.price>0;}).map(function(o){return o.price;});
     var minPrice = prices.length ? Math.min.apply(null, prices) : Infinity;
 
-    return '<div class="card" onclick="openModal(\''+escAttr(g.name)+'\')">'+
+    return '<div class="card" data-name="' + esc(g.name) + '">'+
       imgHtml+
       '<div class="card-body">'+
         '<div class="card-name">'+esc(g.name)+'</div>'+
@@ -356,7 +421,7 @@ function openModal(name) {
 
   var html = '<div class="modal-top">'+imgHtml+'<div class="modal-header">'+
     '<div class="modal-name">'+esc(g.name)+'</div>'+
-    (g.code?'<div class="modal-barcode">대표코드: '+g.code+'</div>':'')+
+    (g.code?'<div class="modal-barcode">대표코드: '+esc(g.code)+'</div>':'')+
     '<div class="modal-total-stock">총 재고 '+totalStock.toLocaleString()+'개</div>'+
   '</div></div><div class="opt-list">';
 
@@ -368,7 +433,7 @@ function openModal(name) {
 
     html += '<div class="opt-item">'+
       optImgHtml+
-      '<div class="opt-label">'+esc(o.optName)+(o.barcode?' <span style="font-size:9px;color:#aaa">('+o.barcode+')</span>':'')+'</div>'+
+      '<div class="opt-label">'+esc(o.optName)+(o.barcode?' <span style="font-size:9px;color:#aaa">('+esc(o.barcode)+')</span>':'')+'</div>'+
       '<div class="opt-price">'+priceText+'</div>'+
       '<div class="opt-stock '+sc+'">'+(o.stock===0?'품절':stockDot+' 있음')+'</div>'+
       '<div class="opt-qty">'+
@@ -376,7 +441,7 @@ function openModal(name) {
         '<span class="qty" id="mqty_'+idx+'">'+(o.stock>0?1:0)+'</span>'+
         '<button onclick="changeModalQty('+idx+',1)" '+(o.stock<=0?'disabled':'')+'>+</button>'+
       '</div>'+
-      '<button class="btn-add-opt" '+(o.stock<=0?'disabled':'')+' onclick="addOptToCart(this,\''+escAttr(g.name)+'\','+idx+')">담기</button>'+
+      '<button class="btn-add-opt" '+(o.stock<=0?'disabled':'')+' data-name="'+esc(g.name)+'" data-idx="'+idx+'">담기</button>'+
     '</div>';
   });
 
@@ -389,7 +454,7 @@ function changeModalQty(idx, delta) {
   var el = document.getElementById('mqty_'+idx);
   var v = parseInt(el.textContent)+delta;
   var stock = currentModalGroup ? (currentModalGroup.options[idx]?currentModalGroup.options[idx].stock:0) : 999;
-  if(v<0)v=0;
+  if(v<1)v=1;
   if(v>stock)v=stock;
   el.textContent=v;
 }
@@ -484,7 +549,9 @@ function toggleCmPanel(){ document.getElementById('cmPanel').classList.toggle('s
 function updateMobileCart() {
   var mb = document.getElementById('cartMobile');
   var panel = document.getElementById('cmPanel');
-  if (cart.length === 0) {
+  // 모바일(<=768px)에서만 하단 바를 표시 (데스크톱은 오른쪽 장바구니 사용)
+  var isMobile = !!(window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+  if (cart.length === 0 || !isMobile) {
     mb.style.display = 'none'; panel.classList.remove('show'); return;
   }
   mb.style.display = 'flex';
@@ -511,16 +578,23 @@ function updateMobileCart() {
   }).join('');
 }
 
-// ============ 导出 xlsx ============
-function exportOrder() {
-  if (!cart.length) return;
+// ============ 주문서: 확인 → 이메일 발송 → 엑셀 다운로드 ============
+var orderSending = false;
+var lastOrderFile = null;     // { name, b64, mime }
+var lastOrderPayload = null;  // 재발송용
+var lastOrderNo = '';
+var mailRecipientsCount = 0;
 
+function makeFallbackOrderNo() {
   var now = new Date();
   var pad = function(n){return String(n).padStart(2,'0');};
   var rand = Math.random().toString(36).slice(2,6).toUpperCase();
-  var orderNo = 'JS'+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+
-                '-'+pad(now.getHours())+pad(now.getMinutes())+pad(now.getSeconds())+rand;
+  return 'JS'+now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+
+         '-'+pad(now.getHours())+pad(now.getMinutes())+pad(now.getSeconds())+rand;
+}
 
+// ezadmin 주문 업로드 양식과 동일한 컬럼 (기존 다운로드와 100% 동일)
+function orderRows(orderNo) {
   var rows = [];
   rows.push(['주문번호','상품코드/매칭코드','상품명','옵션','바코드','단가','수량','금액',
              '수령자명','수령자전화번호','수령자핸드폰','수령자우편번호','수령자주소','배송메세지1']);
@@ -544,15 +618,26 @@ function exportOrder() {
       customerInfo ? customerInfo.memo : ''
     ]);
   });
+  return rows;
+}
 
-  // 用 SheetJS 生成本地 xlsx
+// xlsx 파일을 base64 문자열로 생성 (이메일 첨부 + 다운로드 공용)
+function buildOrderFile(orderNo) {
+  var rows = orderRows(orderNo);
+  var safeName = ((customerInfo && customerInfo.name) ? customerInfo.name : '주문서').replace(/[\\/:*?"<>|]/g, '_');
+
   if (typeof XLSX === 'undefined') {
-    // 降级：CSV 导出
-    var csv = rows.map(function(r){return r.join(',');}).join('\n');
-    var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
-    var fname = (customerInfo?customerInfo.name+'_주문서':'주문서')+'_'+now.toISOString().slice(0,10)+'.csv';
-    downloadBlob(blob, fname);
-    return;
+    var csv = rows.map(function(r) {
+      return r.map(function(v) {
+        var s = String(v == null ? '' : v);
+        return s.indexOf(',') >= 0 || s.indexOf('"') >= 0 ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',');
+    }).join('\n');
+    return {
+      name: safeName + '_' + orderNo + '.csv',
+      b64: btoa(unescape(encodeURIComponent('\uFEFF' + csv))),
+      mime: 'text/csv;charset=utf-8'
+    };
   }
 
   var ws = XLSX.utils.aoa_to_sheet(rows);
@@ -562,25 +647,297 @@ function exportOrder() {
   ];
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '주문서');
-  var fname = (customerInfo?customerInfo.name+'_주문서':'주문서')+'_'+now.toISOString().slice(0,10)+'.xls';
-  XLSX.writeFile(wb, fname, {bookType:'biff8', type:'binary'});
+  return {
+    name: safeName + '_' + orderNo + '.xls',
+    b64: XLSX.write(wb, { bookType: 'biff8', type: 'base64' }),
+    mime: 'application/vnd.ms-excel'
+  };
 }
 
-function downloadBlob(blob, filename) {
+function b64ToBlob(b64, mime) {
+  var bin = atob(b64), len = bin.length, bytes = new Uint8Array(len);
+  for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime || 'application/octet-stream' });
+}
+
+function downloadFile(file) {
+  if (!file || !file.b64) return;
   var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
+  a.href = URL.createObjectURL(b64ToBlob(file.b64, file.mime));
+  a.download = file.name;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(a.href); }, 2000);
+}
+
+// ============ 주문서 확인 모달 ============
+function previewOrder() {
+  if (!cart.length) return;
+  var items = cart.reduce(function(s,c){return s+c.qty;},0);
+  var price = cart.reduce(function(s,c){return s+(c.price||0)*c.qty;},0);
+
+  var rowsHtml = cart.map(function(c){
+    var up = c.price||0;
+    return '<tr>'+
+      '<td style="padding:6px;border-bottom:1px solid #eee">'+esc(c.name)+(c.optName!=='(옵션없음)'?' <span style="color:#888;font-size:11px">/ '+esc(c.optName)+'</span>':'')+'</td>'+
+      '<td style="padding:6px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">'+c.qty+'</td>'+
+      '<td style="padding:6px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">'+(up?up.toLocaleString()+'원':'-')+'</td>'+
+      '<td style="padding:6px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap">'+(up?(up*c.qty).toLocaleString()+'원':'-')+'</td>'+
+      '</tr>';
+  }).join('');
+
+  var recip = '';
+  if (customerInfo) {
+    recip = '<div style="background:#f7f8fa;border-radius:8px;padding:10px 12px;font-size:11px;color:#555;line-height:1.7;margin-bottom:14px">'+
+      '<b style="color:#1e3a5f">수령자 정보</b><br>'+
+      esc(customerInfo.name||'')+
+      (customerInfo.phone?' · '+esc(customerInfo.phone):'')+
+      (customerInfo.mobile?' · '+esc(customerInfo.mobile):'')+
+      (customerInfo.address?'<br>📦 '+esc(customerInfo.address)+(customerInfo.zip?' ('+esc(customerInfo.zip)+')':''):'')+
+      (customerInfo.memo?'<br>📝 '+esc(customerInfo.memo):'')+
+      '</div>';
+  }
+
+  var mailNote = mailRecipientsCount > 0
+    ? '발송하면 담당자 <b>' + mailRecipientsCount + '명</b>에게 주문서가 각각 이메일로 전송됩니다.'
+    : '발송하면 담당자에게 주문서가 이메일로 전송됩니다.';
+
+  var html = '<div style="padding:22px">'+
+    '<h3 style="margin-bottom:8px;color:#1e3a5f">📋 주문서 확인</h3>'+
+    '<p class="preview-note">'+mailNote+'<br>첨부되는 엑셀(.xls)은 ezadmin 업로드용 파일입니다.</p>'+
+    '<table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:12px">'+
+      '<thead><tr style="background:#f7f8fa">'+
+        '<th style="text-align:left;padding:6px">상품</th>'+
+        '<th style="text-align:right;padding:6px;white-space:nowrap">수량</th>'+
+        '<th style="text-align:right;padding:6px;white-space:nowrap">단가</th>'+
+        '<th style="text-align:right;padding:6px;white-space:nowrap">금액</th>'+
+      '</tr></thead><tbody>'+rowsHtml+'</tbody>'+
+    '</table>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:700;color:#e74c3c;margin-bottom:14px">'+
+      '<span>합계 ('+items+'개)</span><span>'+price.toLocaleString()+'원</span>'+
+    '</div>'+
+    recip+
+    '<button class="btn-send" id="btnSendOrder" onclick="sendOrderEmail()">📧 주문서 이메일 발송</button>'+
+    '<div class="order-msg" id="orderSendMsg"></div>'+
+    '<div class="order-preview-actions" style="margin-top:10px">'+
+      '<button class="btn-dl" onclick="downloadPreviewFile()">📥 엑셀만 다운로드</button>'+
+      '<button class="btn-dl" onclick="closeOrderPreview()">닫기</button>'+
+    '</div>'+
+    '</div>';
+
+  document.getElementById('orderPreviewContent').innerHTML = html;
+  document.getElementById('orderPreviewModal').classList.add('active');
+}
+
+function closeOrderPreview() {
+  document.getElementById('orderPreviewModal').classList.remove('active');
+}
+
+function setSendBtnBusy(busy, text) {
+  var btn = document.getElementById('btnSendOrder');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.innerHTML = busy
+    ? '<span class="spinner-sm"></span>' + (text || '발송 중...')
+    : '📧 주문서 이메일 발송';
+}
+
+function sendMsg(text, ok) {
+  var el = document.getElementById('orderSendMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'order-msg' + (ok ? ' ok' : '');
+}
+
+function showSessionExpired() {
+  var el = document.getElementById('orderSendMsg');
+  if (el) {
+    el.className = 'order-msg';
+    el.innerHTML = '로그인 세션이 만료되었습니다. <a href="login.html" style="color:#2d6a9f;font-weight:600">다시 로그인</a>';
+  }
+  setSendBtnBusy(false);
+}
+
+// ============ 이메일 발송 ============
+async function sendOrderEmail() {
+  if (orderSending || !cart.length) return;
+  orderSending = true;
+  setSendBtnBusy(true, '주문번호 발급 중...');
+  sendMsg('');
+
+  try {
+    var noRes = await ApiClient.order.nextNo();
+    if (!noRes || !noRes.success) {
+      if (noRes && (noRes.code === 'SESSION_EXPIRED' || noRes.code === 'NO_SESSION')) { showSessionExpired(); return; }
+      throw new Error((noRes && noRes.error) || '주문번호를 발급받지 못했습니다');
+    }
+    var orderNo = noRes.orderNo;
+
+    setSendBtnBusy(true, '주문서 준비 중...');
+    var file = buildOrderFile(orderNo);
+
+    var payload = {
+      orderNo: orderNo,
+      customer: customerInfo ? {
+        name: customerInfo.name || '',
+        phone: customerInfo.phone || '',
+        mobile: customerInfo.mobile || '',
+        zip: customerInfo.zip || '',
+        address: customerInfo.address || '',
+        memo: customerInfo.memo || ''
+      } : {},
+      items: cart.map(function(c) {
+        return {
+          name: c.name,
+          optName: c.optName === '(옵션없음)' ? '' : c.optName,
+          barcode: c.barcode || '',
+          skuCode: c.skuCode || '',
+          price: c.price || 0,
+          qty: c.qty
+        };
+      }),
+      file: { name: file.name, b64: file.b64 }
+    };
+
+    lastOrderFile = file;
+    lastOrderPayload = payload;
+    lastOrderNo = orderNo;
+
+    setSendBtnBusy(true, '이메일 발송 중...');
+    var res = await ApiClient.order.send(payload);
+
+    if (res && res.success) {
+      renderOrderSuccess(res, file);
+      cart = [];
+      updateCart();
+      return;
+    }
+    if (res && (res.code === 'SESSION_EXPIRED' || res.code === 'NO_SESSION')) { showSessionExpired(); return; }
+    throw new Error((res && res.error) || '이메일 발송에 실패했습니다');
+  } catch (e) {
+    var m = (e && e.message) ? e.message : '발송에 실패했습니다';
+    sendMsg(m + ' — 잠시 후 다시 시도하거나 "엑셀만 다운로드"를 이용해주세요.');
+  } finally {
+    orderSending = false;
+    setSendBtnBusy(false);
+  }
+}
+
+function renderOrderSuccess(res, file) {
+  var counts = res.counts || { ok: 1, fail: 0, total: 1 };
+  var statusHtml = counts.fail > 0
+    ? '<span class="warn">일부 수신자 전송 실패</span> — 성공 ' + counts.ok + ' / 전체 ' + counts.total +
+      '<br>아래 파일을 담당자에게 직접 전달해주세요.'
+    : '<span class="ok">✔ ' + counts.ok + '명에게 이메일 발송 완료</span>';
+
+  var html = '<div class="order-success">'+
+    '<div class="os-icon">✅</div>'+
+    '<div class="os-title">주문이 접수되었습니다</div>'+
+    '<div class="os-sub">아래 주문번호를 복사해 두세요. 담당자가 확인 후 연락드립니다.</div>'+
+    '<div class="order-no-box">'+
+      '<div class="order-no-label">ORDER NO. / 주문번호</div>'+
+      '<div class="order-no-value" id="finalOrderNo">'+esc(res.orderNo)+'</div>'+
+      '<button class="btn-copy" id="btnCopyNo" onclick="copyOrderNo()">주문번호 복사</button>'+
+    '</div>'+
+    '<div class="os-status">'+statusHtml+'<br>첨부파일: '+esc(file.name)+' (ezadmin 업로드용)</div>'+
+    '<div class="os-actions">'+
+      (counts.fail > 0 ? '<button class="os-dl" onclick="retryOrderMail()">🔄 다시 발송</button>' : '')+
+      '<button class="os-dl" onclick="downloadLastFile()">📥 파일 다시 받기</button>'+
+      '<button class="os-close" onclick="closeOrderPreview()">닫기</button>'+
+    '</div>'+
+  '</div>';
+
+  document.getElementById('orderPreviewContent').innerHTML = html;
+}
+
+function copyOrderNo() {
+  var no = lastOrderNo || '';
+  var btn = document.getElementById('btnCopyNo');
+  function done(ok) {
+    if (!btn) return;
+    btn.textContent = ok ? '복사됨 ✓' : '복사 실패 — 길게 눌러 선택';
+    btn.className = 'btn-copy' + (ok ? ' ok' : '');
+    if (ok) setTimeout(function(){ btn.textContent = '주문번호 복사'; btn.className = 'btn-copy'; }, 2000);
+  }
+  function fallback() {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = no;
+      ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      done(ok);
+    } catch(e) { done(false); }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(no).then(function(){ done(true); }, fallback);
+  } else {
+    fallback();
+  }
+}
+
+async function retryOrderMail() {
+  if (orderSending || !lastOrderPayload) return;
+  orderSending = true;
+  var msgEl = document.querySelector('.os-status');
+  var oldHtml = msgEl ? msgEl.innerHTML : '';
+  if (msgEl) msgEl.innerHTML = '<span class="warn">재발송 중...</span>';
+
+  try {
+    var payload = Object.assign({}, lastOrderPayload);
+    payload.resend = true;
+    var res = await ApiClient.order.send(payload);
+    if (res && res.success) {
+      renderOrderSuccess(res, lastOrderFile);
+    } else {
+      if (msgEl) msgEl.innerHTML = oldHtml;
+      alert((res && res.error) || '재발송에 실패했습니다');
+    }
+  } catch(e) {
+    if (msgEl) msgEl.innerHTML = oldHtml;
+    alert('재발송 실패: ' + ((e && e.message) || e));
+  } finally {
+    orderSending = false;
+  }
+}
+
+function downloadLastFile() {
+  downloadFile(lastOrderFile);
+}
+
+// 이메일 없이 엑셀만 받는 안전장치
+function downloadPreviewFile() {
+  var no = lastOrderNo || makeFallbackOrderNo();
+  downloadFile(buildOrderFile(no));
 }
 
 // ============ 工具 ============
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function escAttr(s) { return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
 document.getElementById('modal').addEventListener('click', function(e) { if(e.target===this) closeModal(); });
+document.getElementById('orderPreviewModal').addEventListener('click', function(e) { if(e.target===this) closeOrderPreview(); });
+
+// ============ 이벤트 위임 (XSS 방지) ============
+// 상품 카드 클릭 → 모달 열기
+document.getElementById('productArea').addEventListener('click', function(e) {
+  var card = e.target.closest('.card[data-name]');
+  if (card) openModal(card.getAttribute('data-name'));
+});
+// 옵션 담기 버튼 → 장바구니 추가
+document.getElementById('modalContent').addEventListener('click', function(e) {
+  var btn = e.target.closest('.btn-add-opt[data-name]');
+  if (btn) {
+    var name = btn.getAttribute('data-name');
+    var idx = parseInt(btn.getAttribute('data-idx'));
+    addOptToCart(btn, name, idx);
+  }
+});
 
 // ============ 启动 ============
+window.addEventListener('resize', function() { updateMobileCart(); });
 autoLoad();
 </script>
 </body>

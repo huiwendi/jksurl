@@ -57,6 +57,14 @@ td.stock-low{color:#e67e22;font-weight:700}
 .modal-row input,.modal-row select{width:100%;padding:9px 11px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;outline:none}
 .modal-row input:focus{border-color:#2d6a9f}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* 모바일: 보조 컬럼 숨김 (카테고리/로케이션/이미지/등록일) */
+@media(max-width:768px){
+  table th:nth-child(5),table td:nth-child(5),
+  table th:nth-child(6),table td:nth-child(6),
+  table th:nth-child(11),table td:nth-child(11),
+  table th:nth-child(12),table td:nth-child(12){display:none}
+}
 </style>
 </head>
 <body>
@@ -70,11 +78,35 @@ td.stock-low{color:#e67e22;font-weight:700}
     <button onclick="checkAdmin()" id="adminBtn" style="width:100%;padding:12px;background:#2d6a9f;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px">확인</button>
     <div id="adminErr" style="color:#e74c3c;font-size:12px;margin-top:8px;min-height:16px"></div>
     <div style="font-size:11px;color:#aaa;margin-top:12px">Google Sheets API로 인증됩니다</div>
+    <a href="index.html" style="display:inline-block;margin-top:14px;font-size:12px;color:#2d6a9f;text-decoration:none">← 메인으로</a>
   </div>
 </div>
+<script src="config.js"></script>
 <script src="api-client.js"></script>
 <script>
-(function(){if(sessionStorage.getItem("admin_ok")==="1"){document.getElementById("adminGate").style.display="none";}})();
+(function(){
+  // 저장된 토큰이 있으면 서버 검증 후 게이트 자동 숨김
+  var savedToken = sessionStorage.getItem("admin_token");
+  if (savedToken && sessionStorage.getItem("admin_ok") === "1") {
+    if (!ApiClient.getUrl()) ApiClient.init();
+    var apiUrl = ApiClient.getUrl();
+    var apiKey = ApiClient.getKey();
+    if (apiUrl && apiKey) {
+      fetch(apiUrl + '?action=inventory_rows&key=' + encodeURIComponent(apiKey) + '&token=' + encodeURIComponent(savedToken) + '&t=' + Date.now())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success) {
+            document.getElementById("adminGate").style.display = "none";
+            if (typeof afterAdminAuth === 'function') afterAdminAuth();
+          } else {
+            sessionStorage.removeItem("admin_ok");
+            sessionStorage.removeItem("admin_token");
+          }
+        })
+        .catch(function() { /* 서버 오류 시 게이트 유지 */ });
+    }
+  }
+})();
 async function checkAdmin(){
   var id=document.getElementById("adminId").value.trim();
   var pw=document.getElementById("adminPw").value;
@@ -84,12 +116,12 @@ async function checkAdmin(){
   if(!pw){err.textContent="비밀번호를 입력해주세요";return;}
   btn.disabled=true;btn.textContent="인증 중...";err.textContent="";
   try{
-    ApiClient.init("https://script.google.com/macros/s/AKfycbyJ65PS1DQCc0C5wL892I3juYPtInlMi1mltmgmMHbOhAChkqUvIc7Y-mx7wvhr9Voq/exec","jksurl-customer-2025");
-    var resp=await fetch(ApiClient.getUrl()+"?action=admin_login&id="+encodeURIComponent(id)+"&pw="+encodeURIComponent(pw));
-    var data=await resp.json();
+    if(!ApiClient.getUrl()) ApiClient.init();
+    var data=await ApiClient.admin.login(id,pw); // POST body + 토큰 자동 저장 (P1#3)
     if(data.success){
       sessionStorage.setItem("admin_ok","1");
       document.getElementById("adminGate").style.display="none";
+      if(typeof afterAdminAuth==='function') afterAdminAuth();
     }else{
       err.textContent=data.error||"인증 실패";
     }
@@ -166,6 +198,7 @@ async function checkAdmin(){
     <div class="modal-row">
       <div class="mf"><label>판매가</label><input type="number" id="ePrice" min="0"></div>
       <div class="mf"><label>정상재고</label><input type="number" id="eStock" min="0"></div>
+      <div class="mf"><label>상태</label><select id="eActive"><option value="Y">활성</option><option value="N">비활성</option></select></div>
     </div>
     <div class="modal-row">
       <div class="mf wide"><label>이미지URL</label><input type="text" id="eImage" placeholder="https://..."></div>
@@ -178,15 +211,17 @@ async function checkAdmin(){
   </div>
 </div>
 
-<script src="api-client.js"></script>
 <script>
 // ============ 全局 ============
 let allRows = [];
 let configOk = false;
 
+function cfgDefault(prop) { return (typeof CONFIG !== 'undefined') ? CONFIG[prop] : ''; }
+function adminToken() { return sessionStorage.getItem('admin_token') || ''; }
+
 function loadConfig() {
-  var u = localStorage.getItem('cs_api_url') || '';
-  var k = localStorage.getItem('cs_api_key') || 'jksurl-customer-2025';
+  var u = localStorage.getItem('cs_api_url') || cfgDefault('API_URL');
+  var k = localStorage.getItem('cs_api_key') || cfgDefault('API_KEY');
   document.getElementById('apiUrlInput').value = u;
   document.getElementById('apiKeyInput').value = k;
   ApiClient.init(u, k);
@@ -194,14 +229,18 @@ function loadConfig() {
     document.getElementById('setupBox').style.display = 'block';
     document.getElementById('apiBadge').className = 'api-status err';
     document.getElementById('apiBadge').textContent = '설정 필요';
-  } else {
-    testConnection();
   }
+  // 토큰이 있으면 상단 IIFE가 서버 검증 후 afterAdminAuth() 호출
+  // 토큰이 없으면 게이트가 표시되며 checkAdmin() 성공 시 afterAdminAuth() 호출
+}
+
+async function afterAdminAuth() {
+  await testConnection();
 }
 
 function saveConfig() {
   var u = document.getElementById('apiUrlInput').value.trim();
-  var k = document.getElementById('apiKeyInput').value.trim() || 'jksurl-customer-2025';
+  var k = document.getElementById('apiKeyInput').value.trim();
   if (!u) { showMsg('configMsg','err','URL을 입력해주세요'); return; }
   localStorage.setItem('cs_api_url', u);
   localStorage.setItem('cs_api_key', k);
@@ -278,10 +317,10 @@ function renderTable() {
       '<td class="'+sCls+'">'+(r.stock||0).toLocaleString()+'</td>'+
       '<td style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="'+escAttr(r.image||'')+'">'+esc(imgShort)+'</td>'+
       '<td>'+esc(r.regDate||'-')+'</td>'+
-      '<td>'+st+'</td>'+
+      '<td><button class="btn btn-sm '+(r.active==='N'?'btn-gray':'btn-success')+'" data-action="toggle" data-row="'+r._row+'">'+st+'</button></td>'+
       '<td><div class="actions">'+
-        '<button class="btn btn-sm btn-primary" onclick="openEditModal('+r._row+')">수정</button>'+
-        '<button class="btn btn-sm btn-danger" onclick="delRow('+r._row+',\''+escAttr(r.name||'')+'\')">삭제</button>'+
+        '<button class="btn btn-sm btn-primary" data-action="edit" data-row="'+r._row+'">수정</button>'+
+        '<button class="btn btn-sm btn-danger" data-action="delete" data-row="'+r._row+'" data-name="'+esc(r.name||'')+'">삭제</button>'+
       '</div></td></tr>';
   }).join('');
 }
@@ -300,6 +339,7 @@ function openAddModal() {
   document.getElementById('eStock').value = '';
   document.getElementById('eImage').value = '';
   document.getElementById('eRegDate').value = '';
+  document.getElementById('eActive').value = 'Y';
   document.getElementById('editModal').classList.add('active');
 }
 
@@ -319,6 +359,7 @@ function openEditModal(rowNum) {
   document.getElementById('eStock').value = r.stock||0;
   document.getElementById('eImage').value = r.image||'';
   document.getElementById('eRegDate').value = r.regDate||'';
+  document.getElementById('eActive').value = r.active==='N' ? 'N' : 'Y';
   document.getElementById('editModal').classList.add('active');
 }
 
@@ -342,7 +383,8 @@ async function saveItem() {
     price: parseInt(document.getElementById('ePrice').value) || 0,
     stock: parseInt(document.getElementById('eStock').value) || 0,
     image: document.getElementById('eImage').value.trim(),
-    regDate: document.getElementById('eRegDate').value.trim()
+    regDate: document.getElementById('eRegDate').value.trim(),
+    active: document.getElementById('eActive').value
   };
 
   var result;
@@ -367,6 +409,16 @@ async function delRow(rowNum, name) {
   if (result.success) loadData();
   else alert(result.error||'삭제 실패');
 }
+async function toggleActive(rowNum, btn) {
+  if (btn) { btn.disabled = true; }
+  var result = await ApiClient.inventory.toggle(rowNum);
+  if (result.success) {
+    loadData();
+  } else {
+    alert(result.error || '상태 변경 실패');
+    if (btn) { btn.disabled = false; }
+  }
+}
 
 function showMsg(id, type, text) {
   var el = document.getElementById(id);
@@ -374,7 +426,22 @@ function showMsg(id, type, text) {
   setTimeout(function(){el.className='msg';el.textContent='';},4000);
 }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function escAttr(s) { return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function escAttr(s) { return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+// ============ 재고 테이블 이벤트 위임 (XSS 방지) ============
+document.getElementById('tableBody').addEventListener('click', function(e) {
+  var btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  var action = btn.getAttribute('data-action');
+  var row = parseInt(btn.getAttribute('data-row')) || 0;
+  if (action === 'edit') {
+    openEditModal(row);
+  } else if (action === 'delete') {
+    delRow(row, btn.getAttribute('data-name') || '');
+  } else if (action === 'toggle') {
+    toggleActive(row, btn);
+  }
+});
 
 document.getElementById('editModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
