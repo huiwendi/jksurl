@@ -77,6 +77,16 @@ td.code{font-family:monospace;font-size:11px}
 <script src="api-client.js"></script>
 <script>
 (function(){
+  if (!ApiClient.getUrl()) ApiClient.init();
+  // ★ 免로그인 링크(?k=...)로 들어온 경우: 게이트 없이 바로 사용
+  if (ApiClient.getAlink()) {
+    var gate0 = document.getElementById("adminGate");
+    if (gate0) gate0.style.display = "none";
+    window.addEventListener('load', function() {
+      if (typeof afterAdminAuth === 'function') afterAdminAuth();
+    });
+    return;
+  }
   // 저장된 토큰이 있으면 서버 검증 후 게이트 자동 숨김
   var savedToken = sessionStorage.getItem("admin_token");
   if (savedToken && sessionStorage.getItem("admin_ok") === "1") {
@@ -218,6 +228,25 @@ async function checkAdmin(){
     </div>
   </div>
 
+  <!-- 免로그인 링크 -->
+  <div class="card">
+    <div class="card-header">🔑 免로그인 링크 (북마크용)</div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="field wide" style="flex:1 1 100%">
+          <label>이 링크를 열면 <b>로그인 없이</b> 주문 처리 화면으로 바로 들어갑니다 (PC 바탕화면/휴대폰 북마크에 저장)</label>
+          <input type="text" id="alinkInput" readonly placeholder="링크를 불러오는 중...">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="copyAlink()">📋 링크 복사</button>
+        <button class="btn btn-gray" onclick="openProcess()">🖥 처리 화면 열기</button>
+        <button class="btn btn-gray" onclick="loadAlink()">🔄 새로고침</button>
+      </div>
+      <div class="msg" id="alinkMsg"></div>
+    </div>
+  </div>
+
   <!-- 주문 목록 -->
   <div class="card">
     <div class="card-header">
@@ -292,6 +321,7 @@ async function afterAdminAuth() {
   await testConnection();
   loadMailSettings();
   loadOrders();
+  loadAlink();
 }
 
 function saveConfig() {
@@ -575,6 +605,45 @@ document.getElementById('orderTable').addEventListener('click', async function(e
   if (d && d.success) loadOrders();
   else { alert((d && d.error) || '변경 실패'); btn.disabled = false; }
 });
+
+// ============ 免로그인 링크 ============
+async function loadAlink() {
+  if (!API_URL) return;
+  try {
+    const d = await ApiClient.admin.linkGet();
+    if (d && d.success) {
+      document.getElementById('alinkInput').value = d.link || '';
+    } else {
+      showMsg('alinkMsg', 'err', (d && d.error) || '링크를 가져오지 못했습니다');
+    }
+  } catch (e) {
+    showMsg('alinkMsg', 'err', '네트워크 오류: ' + e.message);
+  }
+}
+
+function copyAlink() {
+  const v = document.getElementById('alinkInput').value;
+  if (!v) { showMsg('alinkMsg', 'err', '먼저 링크를 불러와주세요'); return; }
+  function ok() { showMsg('alinkMsg', 'ok', '복사되었습니다'); }
+  function fb() {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = v; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+      document.body.appendChild(ta); ta.select();
+      const r = document.execCommand('copy');
+      document.body.removeChild(ta);
+      r ? ok() : showMsg('alinkMsg', 'err', '복사 실패 — 길게 눌러 선택하세요');
+    } catch (e) { showMsg('alinkMsg', 'err', '복사 실패'); }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(v).then(ok, fb);
+  } else fb();
+}
+
+function openProcess() {
+  const v = document.getElementById('alinkInput').value;
+  if (v) window.open(v, '_blank');
+}
 
 // ============ 工具 ============
 function showMsg(id, type, text) {

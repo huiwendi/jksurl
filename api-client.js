@@ -22,6 +22,14 @@ var ApiClient = (function() {
   var _key = '';
   var _token = (function() { try { return sessionStorage.getItem('admin_token') || ''; } catch(e) { return ''; } })();
   var _session = (function() { try { return sessionStorage.getItem('order_session') || ''; } catch(e) { return ''; } })();
+  // 관리자 免로그인 링크 토큰 (URL ?k=... 또는 localStorage)
+  var _alink = (function() {
+    try {
+      var k = new URLSearchParams(location.search).get('k');
+      if (k) { localStorage.setItem('admin_alink', k); return k; }
+      return localStorage.getItem('admin_alink') || '';
+    } catch(e) { return ''; }
+  })();
 
   function init(url, key) {
     if (!url && typeof CONFIG !== 'undefined') { url = CONFIG.API_URL || ''; key = CONFIG.API_KEY || key; }
@@ -68,16 +76,24 @@ var ApiClient = (function() {
   }
   function getSession() { return _session; }
 
+  function setAlink(a) {
+    _alink = a || '';
+    try { if (a) localStorage.setItem('admin_alink', a); else localStorage.removeItem('admin_alink'); } catch(e) {}
+  }
+  function getAlink() { return _alink; }
+
   // 관리자 요청용 보조
   function adminBody(o) {
     var copy = Object.assign({}, o);
     copy.key = _key;
     if (_token) copy.token = _token;
+    if (_alink) copy.alink = _alink;
     return copy;
   }
   function adminQuery() {
     var q = 'key=' + encodeURIComponent(_key);
     if (_token) q += '&token=' + encodeURIComponent(_token);
+    if (_alink) q += '&alink=' + encodeURIComponent(_alink);
     return q;
   }
 
@@ -208,6 +224,12 @@ var ApiClient = (function() {
     },
     setOrderStatus: async function(orderNo, status) {
       return await post(adminBody({ action: 'admin_order_status', orderNo: orderNo, status: status }));
+    },
+    orderDetail: async function(orderNo) {
+      return await post(adminBody({ action: 'admin_order_detail', orderNo: orderNo }));
+    },
+    linkGet: async function() {
+      return await post(adminBody({ action: 'admin_link_get' }));
     }
   };
 
@@ -258,6 +280,7 @@ var ApiClient = (function() {
     init: init, getUrl: getUrl, getKey: getKey,
     setToken: setToken, getToken: getToken,
     setSession: setSession, getSession: getSession,
+    setAlink: setAlink, getAlink: getAlink,
     customer: customer, order: order, admin: admin, inventory: inventory
   };
 })();
