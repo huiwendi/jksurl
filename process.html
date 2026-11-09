@@ -92,6 +92,7 @@ table.m td.num,table.m th.num{text-align:right}
     <button class="tab" data-tab="cancel" onclick="switchTab('cancel')">🚫 취소 <span class="n" id="nCancel"></span></button>
   </div>
   <div class="toolbar">
+    <button class="btn btn-gray" onclick="downloadAllMatch()">📦 전체 매칭표</button>
     <span class="hint" id="hint">불러오는 중...</span>
   </div>
   <div id="list"><div class="loading"><div class="spin"></div>불러오는 중...</div></div>
@@ -108,6 +109,7 @@ table.m td.num,table.m th.num{text-align:right}
 
 <script src="config.js"></script>
 <script src="api-client.js"></script>
+<script src="matching.js?v=20261109"></script>
 <script>
 var tab = 'pending';
 var allOrders = [];
@@ -184,6 +186,7 @@ function render() {
       acts.push('<button class="btn btn-green" data-act="done" data-no="' + esc(o.orderNo) + '">✅ 처리완료</button>');
     }
     acts.push('<button class="btn btn-primary" data-act="xls" data-no="' + esc(o.orderNo) + '">📥 엑셀 다운로드</button>');
+    acts.push('<button class="btn btn-gray" data-act="match" data-no="' + esc(o.orderNo) + '">🔗 매칭표</button>');
     acts.push('<button class="btn btn-gray" data-act="detail" data-no="' + esc(o.orderNo) + '">상세</button>');
     return '<div class="ord ' + cls + '">' +
       '<div class="o-top"><span class="o-no">' + esc(o.orderNo) + '</span>' + badgeFor(o) + '</div>' +
@@ -265,6 +268,37 @@ async function downloadOrder(no) {
   buildAndDownload(res.order);
 }
 
+// ✅ 매칭표(ezadmin 「매칭 일괄등록」용) — 주문 1건 분
+//    ezadmin 은 매칭할 때 전각→반각 처리된 옵션 문자열을 쓴다 → Matching.normOpt 가 처리
+async function downloadMatch(no) {
+  toast('매칭표 준비 중...');
+  var res = await ApiClient.admin.orderDetail(no);
+  if (!res || !res.success) { toast((res && res.error) || '불러오기 실패'); return; }
+  var o = res.order || {};
+  var r = Matching.rowsFromItems(o.items || []);
+  if (!r.rows.length) { toast('매칭표에 넣을 상품이 없습니다 (무옵션/코드없음)'); return; }
+  Matching.download(r.rows, '매칭_' + no + '.xls');
+  var extra = [];
+  if (r.skipped.noOpt) extra.push('무옵션 ' + r.skipped.noOpt + '건');
+  if (r.skipped.noCode) extra.push('코드없음 ' + r.skipped.noCode + '건');
+  if (r.skipped.dup) extra.push('중복 ' + r.skipped.dup + '건');
+  toast('매칭표 ' + r.rows.length + '건 다운로드' + (extra.length ? ' (' + extra.join(', ') + ' 제외)' : ''));
+}
+
+// ✅ 매칭표 — 전체 카탈로그(재고 목록 기준). 새 상품이 생기면 다시 받아 한 번 더 업로드하면 된다.
+async function downloadAllMatch() {
+  toast('전체 매칭표 준비 중...');
+  var res = await ApiClient.inventory.getGroups();
+  if (!res || !res.success) { toast((res && res.error) || '재고 목록을 불러오지 못했습니다'); return; }
+  var r = Matching.rowsFromCatalog(res.groups || []);
+  if (!r.rows.length) { toast('매칭표에 넣을 상품이 없습니다'); return; }
+  Matching.download(r.rows, Matching.fileNameFor(''));
+  var extra = [];
+  if (r.skipped.noOpt) extra.push('무옵션 ' + r.skipped.noOpt + '건');
+  if (r.skipped.dup) extra.push('중복 ' + r.skipped.dup + '건');
+  toast('전체 매칭표 ' + r.rows.length + '건 다운로드' + (extra.length ? ' (' + extra.join(', ') + ' 제외)' : ''));
+}
+
 async function showDetail(no) {
   var res = await ApiClient.admin.orderDetail(no);
   if (!res || !res.success) { toast((res && res.error) || '불러오기 실패'); return; }
@@ -280,6 +314,7 @@ async function showDetail(no) {
   if (o.status === '처리완료') acts += '<button class="btn btn-gray" onclick="closeMask(\'detailMask\');setStatus(\'' + o.orderNo + '\',\'발송됨\')">↩️ 되돌리기</button>';
   else if (o.status !== '취소') acts += '<button class="btn btn-green" onclick="closeMask(\'detailMask\');setStatus(\'' + o.orderNo + '\',\'처리완료\')">✅ 처리완료</button>';
   acts += '<button class="btn btn-primary" onclick="downloadOrder(\'' + o.orderNo + '\')">📥 엑셀 다운로드</button>';
+  acts += '<button class="btn btn-gray" onclick="closeMask(\'detailMask\');downloadMatch(\'' + o.orderNo + '\')">🔗 매칭표</button>';
   acts += '<button class="btn btn-gray" onclick="closeMask(\'detailMask\')">닫기</button></div>';
 
   document.getElementById('detailContent').innerHTML =
@@ -302,6 +337,7 @@ document.getElementById('list').addEventListener('click', function(e) {
   if (act === 'done') setStatus(no, '처리완료');
   else if (act === 'undo') setStatus(no, '발송됨');
   else if (act === 'xls') downloadOrder(no);
+  else if (act === 'match') downloadMatch(no);
   else if (act === 'detail') showDetail(no);
 });
 
