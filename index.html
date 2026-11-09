@@ -268,6 +268,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 
 <script src="config.js"></script>
 <script src="api-client.js"></script>
+<script src="matching.js?v=20261109"></script>
 <script>
 // ===== 로그인 확인 =====
 (function(){
@@ -577,6 +578,7 @@ function updateMobileCart() {
 // ============ 주문서: 확인 → 이메일 발송 → 엑셀 다운로드 ============
 var orderSending = false;
 var lastOrderFile = null;     // { name, b64, mime }
+var lastMatchFile = null;     // { name, b64, mime }  ← ezadmin 매칭 일괄등록 표
 var lastOrderPayload = null;  // 재발송용
 var lastOrderNo = '';
 var ORDER_NOTE = '주문서가 생성되었습니다. 확인 후 처리 부탁드립니다.';
@@ -688,6 +690,27 @@ function buildOrderFile(orderNo) {
   };
 }
 
+// 매칭 일괄등록 표(.xls) — 이 주문 품목 기준 (matching.js)
+//   ezadmin 은 매칭할 때 전각→반각 처리된 옵션 문자열을 쓴다 → Matching.normOpt 가 처리
+function buildMatchFile(orderNo) {
+  try {
+    if (typeof XLSX === 'undefined' || typeof Matching === 'undefined') return null;
+    var items = cart.map(function(c) {
+      return { name: c.name, optName: c.optName, skuCode: c.skuCode, qty: c.qty };
+    });
+    var r = Matching.rowsFromItems(items);
+    if (!r.rows.length) return null;
+    var wb = Matching.toWorkbook(r.rows);
+    return {
+      name: '매칭_' + (orderNo || '주문') + '.xls',
+      b64: XLSX.write(wb, { bookType: 'biff8', type: 'base64' }),
+      mime: 'application/vnd.ms-excel'
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 function b64ToBlob(b64, mime) {
   var bin = atob(b64), len = bin.length, bytes = new Uint8Array(len);
   for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
@@ -762,7 +785,7 @@ function previewOrder() {
 
   var html = '<div style="padding:22px">'+
     '<h3 style="margin-bottom:8px;color:#1e3a5f">📋 주문서 확인</h3>'+
-    '<p class="preview-note">'+mailNote+'<br>첨부되는 엑셀(.xls)은 ezadmin 업로드용 파일입니다.</p>'+
+    '<p class="preview-note">'+mailNote+'<br>첨부파일 2개: <b>주문서 .xls</b> + <b>매칭표 .xls</b> (ezadmin 업로드용 · 매칭 일괄등록)</p>'+
     '<table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:12px">'+
       '<thead><tr style="background:#f7f8fa">'+
         '<th style="text-align:left;padding:6px">상품</th>'+
@@ -832,6 +855,7 @@ async function sendOrderEmail() {
 
     setSendBtnBusy(true, '주문서 준비 중...');
     var file = buildOrderFile(orderNo);
+    var mfile = buildMatchFile(orderNo);   // ezadmin 매칭 일괄등록 표 (없으면 null)
 
     var payload = {
       orderNo: orderNo,
@@ -839,8 +863,10 @@ async function sendOrderEmail() {
       items: itemsPayload(),
       file: { name: file.name, b64: file.b64 }
     };
+    if (mfile) payload.file2 = { name: mfile.name, b64: mfile.b64 };
 
     lastOrderFile = file;
+    lastMatchFile = mfile;
     lastOrderPayload = payload;
     lastOrderNo = orderNo;
 
@@ -887,10 +913,11 @@ function renderOrderSuccess(res, file) {
     '<div class="os-title">' + (isRev ? '수정된 주문서가 접수되었습니다' : '주문이 접수되었습니다') + '</div>'+
     '<div class="os-sub">' + (isRev ? '수정 내용이 담당자에게 전달되었습니다.' : '아래 주문번호를 복사해 두세요. 담당자가 확인 후 연락드립니다.') + '</div>'+
     orderNoBoxHtml(res.orderNo) +
-    '<div class="os-status">'+statusHtml+'<br>첨부파일: '+esc(file.name)+' (ezadmin 업로드용)</div>'+
+    '<div class="os-status">'+statusHtml+'<br>첨부파일: '+esc(file.name)+(lastMatchFile ? ' + ' + esc(lastMatchFile.name) : '')+' (ezadmin 업로드용)</div>'+
     '<div class="os-actions">'+
       (counts.fail > 0 ? '<button class="os-dl" onclick="retryOrderMail()">🔄 다시 발송</button>' : '')+
       '<button class="os-dl" onclick="downloadLastFile()">📥 파일 다시 받기</button>'+
+      (lastMatchFile ? '<button class="os-dl" onclick="downloadLastMatchFile()">🔗 매칭표 다시 받기</button>' : '')+
       '<button class="os-dl" onclick="location.href=\'orders.html\'">📋 주문내역</button>'+
       '<button class="os-close" onclick="closeOrderPreview()">닫기</button>'+
     '</div>'+
@@ -914,14 +941,17 @@ async function saveOrderDraft() {
       throw new Error((res && res.error) || '저장에 실패했습니다');
     }
     var file = buildOrderFile(res.orderNo);   // cart 가 비워지기 전에 생성
+    var mfile = buildMatchFile(res.orderNo);
     lastOrderNo = res.orderNo;
     lastOrderFile = file;
+    lastMatchFile = mfile;
     lastOrderPayload = {
       orderNo: res.orderNo,
       customer: draftCust,
       items: draftItems,
       file: { name: file.name, b64: file.b64 }
     };
+    if (mfile) lastOrderPayload.file2 = { name: mfile.name, b64: mfile.b64 };
     renderDraftSaved(res);
     cart = [];
     updateCart();

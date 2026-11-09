@@ -39,9 +39,9 @@ var Matching = (function () {
 
   function pushRow(out, seen, code, opt, name, stat) {
     code = String(code == null ? '' : code).trim();
-    if (!code) { stat.noCode++; return; }
-    var o = normOpt(opt);
-    if (!o) { stat.noOpt++; return; }
+    if (!code) { stat.noCode++; return; }          // 상품코드가 없으면 ezadmin 이 거부한다
+    var o = normOpt(opt);                           // 무옵션 상품은 옵션 칸을 비워서 넣는다 (거부되지 않음)
+    if (!o) stat.noOpt++;
     var key = code + '|' + o;
     if (seen[key]) { stat.dup++; return; }
     seen[key] = 1;

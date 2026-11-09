@@ -187,7 +187,7 @@ function render() {
     }
     acts.push('<button class="btn btn-primary" data-act="xls" data-no="' + esc(o.orderNo) + '">📥 엑셀 다운로드</button>');
     acts.push('<button class="btn btn-gray" data-act="match" data-no="' + esc(o.orderNo) + '">🔗 매칭표</button>');
-    acts.push('<button class="btn btn-danger" data-act="del" data-no="' + esc(o.orderNo) + '" title="주문 삭제">🗑</button>');
+    acts.push('<button class="btn btn-danger" data-act="del" data-no="' + esc(o.orderNo) + '" title="주문 삭제">🗑 삭제</button>');
     acts.push('<button class="btn btn-gray" data-act="detail" data-no="' + esc(o.orderNo) + '">상세</button>');
     return '<div class="ord ' + cls + '">' +
       '<div class="o-top"><span class="o-no">' + esc(o.orderNo) + '</span>' + badgeFor(o) + '</div>' +
@@ -280,10 +280,10 @@ async function downloadMatch(no) {
   if (!r.rows.length) { toast('매칭표에 넣을 상품이 없습니다 (무옵션/코드없음)'); return; }
   Matching.download(r.rows, '매칭_' + no + '.xls');
   var extra = [];
-  if (r.skipped.noOpt) extra.push('무옵션 ' + r.skipped.noOpt + '건');
   if (r.skipped.noCode) extra.push('코드없음 ' + r.skipped.noCode + '건');
   if (r.skipped.dup) extra.push('중복 ' + r.skipped.dup + '건');
-  toast('매칭표 ' + r.rows.length + '건 다운로드' + (extra.length ? ' (' + extra.join(', ') + ' 제외)' : ''));
+  var note = r.skipped.noOpt ? ' · 무옵션 ' + r.skipped.noOpt + '건은 옵션 빈칸으로 포함' : '';
+  toast('매칭표 ' + r.rows.length + '건 다운로드' + (extra.length ? ' (' + extra.join(', ') + ' 제외)' : '') + note);
 }
 
 // ✅ 매칭표 — 전체 카탈로그(재고 목록 기준). 새 상품이 생기면 다시 받아 한 번 더 업로드하면 된다.
@@ -295,9 +295,9 @@ async function downloadAllMatch() {
   if (!r.rows.length) { toast('매칭표에 넣을 상품이 없습니다'); return; }
   Matching.download(r.rows, Matching.fileNameFor(''));
   var extra = [];
-  if (r.skipped.noOpt) extra.push('무옵션 ' + r.skipped.noOpt + '건');
   if (r.skipped.dup) extra.push('중복 ' + r.skipped.dup + '건');
-  toast('전체 매칭표 ' + r.rows.length + '건 다운로드' + (extra.length ? ' (' + extra.join(', ') + ' 제외)' : ''));
+  var note = r.skipped.noOpt ? ' · 무옵션 ' + r.skipped.noOpt + '건은 옵션 빈칸으로 포함' : '';
+  toast('전체 매칭표 ' + r.rows.length + '건 다운로드' + (extra.length ? ' (' + extra.join(', ') + ' 제외)' : '') + note);
 }
 
 // ===== 관리자 직접 수정 (품목 삭제/추가/수량) + 주문 삭제 =====
@@ -338,7 +338,7 @@ function renderDetail() {
         (it.skuCode ? ' <span style="color:#b0bcc8;font-size:10px">' + esc(it.skuCode) + '</span>' : '') + '</td>' +
       '<td class="num"><input type="number" min="1" max="9999" value="' + num(it.qty) + '" onchange="editQty(' + idx + ',this.value)" ' +
         'style="width:62px;text-align:right;padding:5px;border:1px solid #dfe6ee;border-radius:6px"></td>' +
-      '<td class="num">' + (num(it.price) ? money(it.price) + '원' : '-') + '</td>' +
+      '<td class="num" style="white-space:nowrap">' + (num(it.price) ? money(it.price) + '원' : '-') + '</td>' +
       '<td class="num"><button class="btn btn-danger" style="padding:5px 10px" onclick="removeItem(' + idx + ')">✕</button></td>' +
     '</tr>';
   }).join('') : '<tr><td colspan="4" style="text-align:center;color:#99a">품목이 없습니다 — 아래에서 추가하세요</td></tr>';
