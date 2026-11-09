@@ -228,6 +228,16 @@ var ApiClient = (function() {
     orderDetail: async function(orderNo) {
       return await post(adminBody({ action: 'admin_order_detail', orderNo: orderNo }));
     },
+    // 주문 품목 수정 (관리자 직접 삭제/추가/수량변경). customer 넘기면 수령자 정보도 같이 저장
+    setOrderItems: async function(orderNo, items, customer) {
+      var body = adminBody({ action: 'admin_order_items_set', orderNo: orderNo, items: items });
+      if (customer) body.customer = customer;
+      return await post(body);
+    },
+    // 주문 삭제 (orders 시트에서 행 삭제 — 되돌릴 수 없음)
+    deleteOrder: async function(orderNo) {
+      return await post(adminBody({ action: 'admin_order_delete', orderNo: orderNo }));
+    },
     linkGet: async function() {
       return await post(adminBody({ action: 'admin_link_get' }));
     }

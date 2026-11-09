@@ -187,6 +187,7 @@ function render() {
     }
     acts.push('<button class="btn btn-primary" data-act="xls" data-no="' + esc(o.orderNo) + '">📥 엑셀 다운로드</button>');
     acts.push('<button class="btn btn-gray" data-act="match" data-no="' + esc(o.orderNo) + '">🔗 매칭표</button>');
+    acts.push('<button class="btn btn-danger" data-act="del" data-no="' + esc(o.orderNo) + '" title="주문 삭제">🗑</button>');
     acts.push('<button class="btn btn-gray" data-act="detail" data-no="' + esc(o.orderNo) + '">상세</button>');
     return '<div class="ord ' + cls + '">' +
       '<div class="o-top"><span class="o-no">' + esc(o.orderNo) + '</span>' + badgeFor(o) + '</div>' +
@@ -299,34 +300,175 @@ async function downloadAllMatch() {
   toast('전체 매칭표 ' + r.rows.length + '건 다운로드' + (extra.length ? ' (' + extra.join(', ') + ' 제외)' : ''));
 }
 
+// ===== 관리자 직접 수정 (품목 삭제/추가/수량) + 주문 삭제 =====
+var editOrder = null, editItems = [], invCache = null, pickRows = [], lastPickQuery = '', editBusy = false;
+
+function num(v) { return Number(v) || 0; }
+function sumEdit() {
+  var qty = 0, amt = 0;
+  editItems.forEach(function(it) { qty += num(it.qty); amt += num(it.price) * num(it.qty); });
+  return { qty: qty, amount: amt };
+}
+function backendHint(res) {
+  var e = String((res && res.error) || '');
+  if (/unknown action/i.test(e)) return '백엔드 업데이트가 필요합니다 — GAS 새 버전(2026-11-09-admin-edit-1) 배포 후 사용하세요';
+  return e || '실패';
+}
+
 async function showDetail(no) {
   var res = await ApiClient.admin.orderDetail(no);
   if (!res || !res.success) { toast((res && res.error) || '불러오기 실패'); return; }
-  var o = res.order;
-  var cust = o.customer || {};
-  var rows = (o.items || []).map(function(it) {
-    var price = Number(it.price) || 0;
-    return '<tr><td>' + esc(it.name) + (it.optName ? '<br><span style="color:#888;font-size:11px">' + esc(it.optName) + '</span>' : '') + '</td>' +
-      '<td class="num">' + (it.qty || 0) + '</td><td class="num">' + (price ? money(price) + '원' : '-') + '</td>' +
-      '<td class="num">' + (price ? money(price * it.qty) + '원' : '-') + '</td></tr>';
-  }).join('');
+  editOrder = res.order;
+  editItems = (editOrder.items || []).map(function(it) {
+    return { name: it.name || '', optName: it.optName || '', barcode: it.barcode || '',
+             skuCode: it.skuCode || '', price: num(it.price), qty: num(it.qty) || 1 };
+  });
+  lastPickQuery = '';
+  renderDetail();
+  document.getElementById('detailMask').classList.add('active');
+  loadInventoryForPicker();
+}
+
+function renderDetail() {
+  var o = editOrder || {}, cust = o.customer || {};
+  var rows = editItems.length ? editItems.map(function(it, idx) {
+    return '<tr>' +
+      '<td>' + esc(it.name) +
+        (it.optName ? '<br><span style="color:#888;font-size:11px">' + esc(it.optName) + '</span>' : '') +
+        (it.skuCode ? ' <span style="color:#b0bcc8;font-size:10px">' + esc(it.skuCode) + '</span>' : '') + '</td>' +
+      '<td class="num"><input type="number" min="1" max="9999" value="' + num(it.qty) + '" onchange="editQty(' + idx + ',this.value)" ' +
+        'style="width:62px;text-align:right;padding:5px;border:1px solid #dfe6ee;border-radius:6px"></td>' +
+      '<td class="num">' + (num(it.price) ? money(it.price) + '원' : '-') + '</td>' +
+      '<td class="num"><button class="btn btn-danger" style="padding:5px 10px" onclick="removeItem(' + idx + ')">✕</button></td>' +
+    '</tr>';
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#99a">품목이 없습니다 — 아래에서 추가하세요</td></tr>';
+
+  var t = sumEdit();
   var acts = '<div class="m-actions">';
-  if (o.status === '처리완료') acts += '<button class="btn btn-gray" onclick="closeMask(\'detailMask\');setStatus(\'' + o.orderNo + '\',\'발송됨\')">↩️ 되돌리기</button>';
-  else if (o.status !== '취소') acts += '<button class="btn btn-green" onclick="closeMask(\'detailMask\');setStatus(\'' + o.orderNo + '\',\'처리완료\')">✅ 처리완료</button>';
-  acts += '<button class="btn btn-primary" onclick="downloadOrder(\'' + o.orderNo + '\')">📥 엑셀 다운로드</button>';
-  acts += '<button class="btn btn-gray" onclick="closeMask(\'detailMask\');downloadMatch(\'' + o.orderNo + '\')">🔗 매칭표</button>';
+  if (o.status === '처리완료') acts += '<button class="btn btn-gray" onclick="afterStatus(\'발송됨\')">↩️ 되돌리기</button>';
+  else if (o.status !== '취소') acts += '<button class="btn btn-green" onclick="afterStatus(\'처리완료\')">✅ 처리완료</button>';
+  acts += '<button class="btn btn-primary" onclick="saveItems()">💾 변경 저장</button>';
+  acts += '<button class="btn btn-gray" onclick="downloadOrder(\'' + o.orderNo + '\')">📥 엑셀</button>';
+  acts += '<button class="btn btn-gray" onclick="downloadMatch(\'' + o.orderNo + '\')">🔗 매칭표</button>';
+  acts += '<button class="btn btn-danger" onclick="deleteOrder(\'' + o.orderNo + '\')">🗑 삭제</button>';
   acts += '<button class="btn btn-gray" onclick="closeMask(\'detailMask\')">닫기</button></div>';
 
   document.getElementById('detailContent').innerHTML =
     '<h3>' + esc(o.orderNo) + ' ' + badgeFor(o) + '</h3>' +
     '<div class="m-info">고객: <b>' + esc(cust.name || '') + '</b>' + (cust.phone ? ' / ' + esc(cust.phone) : '') +
       '<br>접수: ' + esc(o.createdAt) + (o.sentAt ? ' · 발송: ' + esc(o.sentAt) : '') +
-      (o.revision > 0 ? '<br>수정: ' + o.revision + '차' : '') +
+      (o.revision > 0 ? ' · 고객수정 ' + o.revision + '차' : '') +
+      (o.adminEdits > 0 ? ' · <b style="color:#b45309">관리자수정 ' + o.adminEdits + '회</b>' : '') +
       (cust.address ? '<br>주소: ' + esc(cust.address) : '') + '</div>' +
-    '<table class="m"><thead><tr><th>상품</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-    '<div class="m-total"><span>합계 (' + (o.totalQty || 0) + '개)</span><span>' + money(o.totalAmount) + '원</span></div>' +
-    acts;
-  document.getElementById('detailMask').classList.add('active');
+    '<table class="m"><thead><tr><th>상품 (수정 가능)</th><th class="num">수량</th><th class="num">단가</th><th class="num"></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="m-total"><span>합계 (' + t.qty + '개)</span><span>' + money(t.amount) + '원</span></div>' +
+    '<div style="background:#f7f8fa;border-radius:8px;padding:10px 12px;margin-bottom:4px">' +
+      '<div style="font-size:12px;color:#556;margin-bottom:6px"><b>➕ 품목 추가</b> — 상품명 / 옵션 / 바코드 검색</div>' +
+      '<input id="prodSearch" placeholder="예: 야광3D눈 22호" oninput="searchProducts(this.value)" value="' + esc(lastPickQuery) + '" ' +
+        'style="width:100%;padding:9px 11px;border:1px solid #dfe6ee;border-radius:7px;font-size:12px;outline:none">' +
+      '<div id="prodResults" style="max-height:170px;overflow:auto;margin-top:6px"></div>' +
+    '</div>' + acts;
+  if (lastPickQuery) searchProducts(lastPickQuery);
+}
+
+function editQty(i, v) {
+  if (!editItems[i]) return;
+  var q = parseInt(v, 10);
+  if (isNaN(q) || q < 1) q = 1;
+  if (q > 9999) q = 9999;
+  editItems[i].qty = q;
+  renderDetail();
+}
+function removeItem(i) { editItems.splice(i, 1); renderDetail(); }
+
+async function loadInventoryForPicker() {
+  if (invCache || loadInventoryForPicker._busy) return;
+  loadInventoryForPicker._busy = true;
+  try {
+    var res = await ApiClient.inventory.getGroups();
+    if (res && res.success) {
+      var flat = [];
+      (res.groups || []).forEach(function(g) {
+        (g.options || []).forEach(function(o) {
+          flat.push({ name: g.name || '', optName: o.optName || '', price: num(o.price),
+                      barcode: o.barcode || '', skuCode: o.skuCode || '' });
+        });
+      });
+      invCache = flat;
+      if (lastPickQuery) searchProducts(lastPickQuery);
+    }
+  } finally { loadInventoryForPicker._busy = false; }
+}
+
+function searchProducts(q) {
+  lastPickQuery = String(q || '');
+  var box = document.getElementById('prodResults');
+  if (!box) return;
+  if (!invCache) { box.innerHTML = '<div style="font-size:12px;color:#99a;padding:6px">상품 목록 불러오는 중...</div>'; return; }
+  var key = lastPickQuery.trim().toLowerCase();
+  if (!key) { box.innerHTML = '<div style="font-size:12px;color:#99a;padding:6px">검색어를 입력하세요</div>'; return; }
+  var out = [];
+  for (var i = 0; i < invCache.length; i++) {
+    var it = invCache[i];
+    if ((it.name + ' ' + it.optName + ' ' + it.barcode + ' ' + it.skuCode).toLowerCase().indexOf(key) >= 0) {
+      out.push(it);
+      if (out.length >= 20) break;
+    }
+  }
+  pickRows = out;
+  box.innerHTML = out.length ? out.map(function(it, idx) {
+    return '<div style="padding:7px 9px;border-bottom:1px solid #eef1f4;cursor:pointer" onclick="addProduct(' + idx + ')">' +
+      '<b style="font-size:12px;color:#16324f">' + esc(it.name) + '</b>' +
+      '<div style="font-size:11px;color:#778;margin-top:2px">' + esc(it.optName) + ' · ' + esc(it.skuCode) +
+      (it.price ? ' · ' + money(it.price) + '원' : '') + '</div></div>';
+  }).join('') : '<div style="font-size:12px;color:#c0392b;padding:6px">검색 결과가 없습니다</div>';
+}
+
+function addProduct(idx) {
+  var it = pickRows[idx];
+  if (!it) return;
+  var dup = -1;
+  for (var i = 0; i < editItems.length; i++) {
+    if (String(editItems[i].skuCode) === String(it.skuCode) && String(editItems[i].optName) === String(it.optName)) { dup = i; break; }
+  }
+  if (dup >= 0) { editItems[dup].qty = num(editItems[dup].qty) + 1; }
+  else editItems.push({ name: it.name, optName: it.optName, barcode: it.barcode, skuCode: it.skuCode, price: it.price, qty: 1 });
+  renderDetail();
+  toast(dup >= 0 ? '수량 +1' : '품목을 추가했습니다');
+}
+
+async function saveItems() {
+  if (!editOrder || editBusy) return;
+  if (!editItems.length) { toast('품목이 비어 있습니다 — 주문 자체를 지우려면 🗑 삭제를 쓰세요'); return; }
+  editBusy = true;
+  var payload = editItems.map(function(it) {
+    return { name: it.name, optName: it.optName, barcode: it.barcode, skuCode: it.skuCode, price: num(it.price), qty: num(it.qty) };
+  });
+  var res = await ApiClient.admin.setOrderItems(editOrder.orderNo, payload);
+  editBusy = false;
+  if (res && res.success) {
+    editOrder = res.order;
+    editItems = (editOrder.items || []).map(function(it) {
+      return { name: it.name || '', optName: it.optName || '', barcode: it.barcode || '',
+               skuCode: it.skuCode || '', price: num(it.price), qty: num(it.qty) || 1 };
+    });
+    renderDetail();
+    toast('저장되었습니다 — 엑셀을 다시 받아 ezadmin에 다시 올리세요');
+    loadOrders();
+  } else toast(backendHint(res) || '저장 실패');
+}
+
+async function deleteOrder(no) {
+  if (!confirm(no + ' 주문을 완전히 삭제할까요?\n\n· 되돌릴 수 없습니다\n· 고객 주문내역에서도 사라집니다')) return;
+  var res = await ApiClient.admin.deleteOrder(no);
+  if (res && res.success) { closeMask('detailMask'); toast('삭제되었습니다'); loadOrders(); }
+  else toast(backendHint(res) || '삭제 실패');
+}
+
+function afterStatus(status) {
+  var no = editOrder && editOrder.orderNo;
+  closeMask('detailMask');
+  if (no) setStatus(no, status);
 }
 
 document.getElementById('list').addEventListener('click', function(e) {
@@ -338,6 +480,7 @@ document.getElementById('list').addEventListener('click', function(e) {
   else if (act === 'undo') setStatus(no, '발송됨');
   else if (act === 'xls') downloadOrder(no);
   else if (act === 'match') downloadMatch(no);
+  else if (act === 'del') deleteOrder(no);
   else if (act === 'detail') showDetail(no);
 });
 
