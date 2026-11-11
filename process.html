@@ -58,6 +58,18 @@ table.m{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
 table.m th{background:#f7f8fa;text-align:left;padding:7px 8px;color:#667;font-weight:600}
 table.m td{padding:7px 8px;border-bottom:1px solid #eef1f4}
 table.m td.num,table.m th.num{text-align:right}
+/* 상품 이미지 (피킹/검수 대조용) */
+.it-cell{display:flex;align-items:center;gap:9px}
+.it-thumb{width:46px;height:46px;flex:0 0 46px;border-radius:7px;background:#fafafa;border:1px solid #eef1f4;display:flex;align-items:center;justify-content:center;overflow:hidden;text-decoration:none}
+.it-thumb .it-img{width:100%;height:100%;object-fit:contain;display:none;background:#fff}
+.it-thumb.ok .it-img{display:block}
+.it-thumb.ok .it-ph{display:none}
+.it-thumb .it-ph{font-size:17px;color:#dfe6ee;line-height:1}
+.it-thumb[href]{cursor:zoom-in}
+.it-name{font-size:12.5px;line-height:1.45;word-break:keep-all}
+.it-opt{font-size:11px;color:#888;margin-top:2px}
+.it-code{font-size:10px;color:#b0bcc8;margin-top:1px;font-family:Consolas,Menlo,monospace}
+.it-note{font-size:11px;color:#9aa;margin:-2px 0 10px}
 .m-total{display:flex;justify-content:space-between;font-size:15px;font-weight:800;color:#e74c3c;margin:10px 0}
 .m-info{background:#f7f8fa;border-radius:8px;padding:10px 12px;font-size:12px;color:#556;line-height:1.9}
 .m-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -109,6 +121,7 @@ table.m td.num,table.m th.num{text-align:right}
 
 <script src="config.js"></script>
 <script src="api-client.js"></script>
+<script src="product-images.js?v=20261111"></script>
 <script src="matching.js?v=20261109"></script>
 <script>
 var tab = 'pending';
@@ -333,9 +346,16 @@ function renderDetail() {
   var o = editOrder || {}, cust = o.customer || {};
   var rows = editItems.length ? editItems.map(function(it, idx) {
     return '<tr>' +
-      '<td>' + esc(it.name) +
-        (it.optName ? '<br><span style="color:#888;font-size:11px">' + esc(it.optName) + '</span>' : '') +
-        (it.skuCode ? ' <span style="color:#b0bcc8;font-size:10px">' + esc(it.skuCode) + '</span>' : '') + '</td>' +
+      '<td><div class="it-cell">' +
+        '<a class="it-thumb" data-bc="' + esc(it.barcode) + '" data-sku="' + esc(it.skuCode) + '"' +
+        ' data-name="' + esc(it.name) + '" data-opt="' + esc(ProductImages.normOpt(it.optName)) + '">' +
+          '<img class="it-img" alt=""><span class="it-ph">📷</span></a>' +
+        '<div class="it-info">' +
+          '<div class="it-name">' + esc(it.name) + '</div>' +
+          (it.optName ? '<div class="it-opt">' + esc(it.optName) + '</div>' : '') +
+          (it.skuCode ? '<div class="it-code">' + esc(it.skuCode) + '</div>' : '') +
+        '</div>' +
+      '</div></td>' +
       '<td class="num"><input type="number" min="1" max="9999" value="' + num(it.qty) + '" onchange="editQty(' + idx + ',this.value)" ' +
         'style="width:62px;text-align:right;padding:5px;border:1px solid #dfe6ee;border-radius:6px"></td>' +
       '<td class="num" style="white-space:nowrap">' + (num(it.price) ? money(it.price) + '원' : '-') + '</td>' +
@@ -367,8 +387,10 @@ function renderDetail() {
       '<input id="prodSearch" placeholder="예: 야광3D눈 22호" oninput="searchProducts(this.value)" value="' + esc(lastPickQuery) + '" ' +
         'style="width:100%;padding:9px 11px;border:1px solid #dfe6ee;border-radius:7px;font-size:12px;outline:none">' +
       '<div id="prodResults" style="max-height:170px;overflow:auto;margin-top:6px"></div>' +
-    '</div>' + acts;
+    '</div>' +
+    '<div class="it-note">※ 상품 이미지를 누르면 크게 볼 수 있습니다 (검수·피킹 대조용)</div>' + acts;
   if (lastPickQuery) searchProducts(lastPickQuery);
+  ProductImages.fill(document.getElementById('detailContent'));
 }
 
 function editQty(i, v) {
@@ -385,18 +407,21 @@ async function loadInventoryForPicker() {
   if (invCache || loadInventoryForPicker._busy) return;
   loadInventoryForPicker._busy = true;
   try {
-    var res = await ApiClient.inventory.getGroups();
-    if (res && res.success) {
-      var flat = [];
-      (res.groups || []).forEach(function(g) {
-        (g.options || []).forEach(function(o) {
-          flat.push({ name: g.name || '', optName: o.optName || '', price: num(o.price),
-                      barcode: o.barcode || '', skuCode: o.skuCode || '' });
-        });
-      });
-      invCache = flat;
-      if (lastPickQuery) searchProducts(lastPickQuery);
+    // 이미지 모듈이 받아둔 재고 목록을 그대로 재사용 (같은 600KB 를 두 번 받지 않도록)
+    var r = await ProductImages.load();
+    if (!r.groups) {
+      var again = await ApiClient.inventory.getGroups();
+      if (again && again.success) r = ProductImages.prime(again.groups || []);
     }
+    var flat = [];
+    (r.groups || []).forEach(function(g) {
+      (g.options || []).forEach(function(o) {
+        flat.push({ name: g.name || '', optName: o.optName || '', price: num(o.price),
+                    barcode: o.barcode || '', skuCode: o.skuCode || '' });
+      });
+    });
+    invCache = flat;
+    if (lastPickQuery) searchProducts(lastPickQuery);
   } finally { loadInventoryForPicker._busy = false; }
 }
 
