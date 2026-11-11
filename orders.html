@@ -57,6 +57,18 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f5
 .m-table th{background:#f7f8fa;text-align:left;padding:7px 8px;color:#666;font-weight:600}
 .m-table td{padding:7px 8px;border-bottom:1px solid #eee}
 .m-table td.num,.m-table th.num{text-align:right}
+/* 상품 이미지 (입고 대조용) */
+.it-cell{display:flex;align-items:center;gap:9px}
+.it-thumb{width:46px;height:46px;flex:0 0 46px;border-radius:7px;background:#fafafa;border:1px solid #eee;display:flex;align-items:center;justify-content:center;overflow:hidden;text-decoration:none}
+.it-thumb .it-img{width:100%;height:100%;object-fit:contain;display:none;background:#fff}
+.it-thumb.ok .it-img{display:block}
+.it-thumb.ok .it-ph{display:none}
+.it-thumb .it-ph{font-size:17px;color:#dcdcdc;line-height:1}
+.it-thumb[href]{cursor:zoom-in}
+.it-name{font-size:12.5px;line-height:1.45;word-break:keep-all}
+.it-opt{font-size:11px;color:#888;margin-top:2px}
+.m-table td.qty{font-weight:800;font-size:14px;color:#1e3a5f}
+.img-note{font-size:11px;color:#999;margin:-4px 0 8px;line-height:1.6}
 .m-total{display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:#e74c3c;margin:10px 0}
 .m-info{background:#f7f8fa;border-radius:8px;padding:10px 12px;font-size:12px;color:#555;line-height:1.8}
 .m-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -226,9 +238,20 @@ async function showDetail(orderNo) {
   if (!res || !res.success) { toast(res && res.error || '불러오기 실패'); return; }
   var o = res.order;
   var rows = (o.items || []).map(function(it) {
+    var nm = esc(it.name), op = esc(normOpt(it.optName));
     return '<tr>' +
-      '<td>' + esc(it.name) + (it.optName ? '<br><span style="color:#888;font-size:11px">' + esc(it.optName) + '</span>' : '') + '</td>' +
-      '<td class="num">' + it.qty + '</td>' +
+      '<td class="td-item"><div class="it-cell">' +
+        '<a class="it-thumb" data-bc="' + esc(it.barcode) + '" data-sku="' + esc(it.skuCode) + '"' +
+        ' data-name="' + esc(it.name) + '" data-opt="' + esc(normOpt(it.optName)) + '">' +
+          '<img class="it-img" alt="">' +
+          '<span class="it-ph">📷</span>' +
+        '</a>' +
+        '<div class="it-info">' +
+          '<div class="it-name">' + nm + '</div>' +
+          (op ? '<div class="it-opt">' + op + '</div>' : '') +
+        '</div>' +
+      '</div></td>' +
+      '<td class="num qty">' + it.qty + '</td>' +
     '</tr>';
   }).join('');
 
@@ -248,10 +271,113 @@ async function showDetail(orderNo) {
       (cust.memo ? '<br>메모: ' + esc(cust.memo) : '') +
     '</div>' +
     '<table class="m-table"><thead><tr><th>상품</th><th class="num">수량</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="img-note">※ 상품 이미지를 누르면 크게 볼 수 있습니다. 이미지는 상품 대표 이미지입니다.</div>' +
     '<div class="m-total"><span>합계 (' + (o.totalQty || 0) + '개)</span><span></span></div>' +
     acts;
 
   document.getElementById('detailMask').classList.add('active');
+  fillDetailImages();
+}
+
+// ============================================================
+// 상품 이미지: 재고 API(공개)에서 바코드/상품코드 → 이미지 URL 매핑
+//  - 주문에 이미지가 저장돼 있지 않아도, 과거 주문까지 소급해서 표시됨
+//  - 6시간 sessionStorage 캐시 (재고 600KB 를 매번 받지 않도록)
+// ============================================================
+var IMG_CACHE_KEY = 'jks_img_map_v1';
+var _imgMap = null, _imgPromise = null;
+
+function normOpt(s) {
+  return String(s || '').replace(/^\(옵션없음\)$/, '').replace(/\s+/g, ' ').trim();
+}
+
+function buildImgMap(groups) {
+  var urls = [], idx = {};
+  function put(map, key, url) {
+    if (!key || !url) return;
+    if (!(url in idx)) { idx[url] = urls.length; urls.push(url); }
+    map[key] = idx[url];
+  }
+  var map = { u: urls, b: {}, s: {}, n: {}, no: {} };
+  (groups || []).forEach(function(g) {
+    var gname = String(g.name || '').trim();
+    var gimg = String(g.image || '').trim();
+    if (gname && gimg) put(map.n, gname, gimg);
+    (g.options || []).forEach(function(o) {
+      var img = String(o.image || '').trim() || gimg;
+      if (!img) return;
+      put(map.b, String(o.barcode || '').trim(), img);
+      put(map.s, String(o.skuCode || '').trim(), img);
+      var on = normOpt(o.optName);
+      if (gname && on) put(map.no, gname + '\u0001' + on, img);
+    });
+  });
+  return map;
+}
+
+function loadImgMap() {
+  if (_imgMap) return Promise.resolve(_imgMap);
+  if (_imgPromise) return _imgPromise;
+  _imgPromise = (async function() {
+    try {
+      var raw = sessionStorage.getItem(IMG_CACHE_KEY);
+      if (raw) {
+        var c = JSON.parse(raw);
+        if (c && c.ts && c.map && c.map.u && (Date.now() - c.ts) < 6 * 3600 * 1000) {
+          _imgMap = c.map;
+          return _imgMap;
+        }
+      }
+    } catch(e) {}
+    _imgMap = { u: [], b: {}, s: {}, n: {}, no: {} };
+    try {
+      var res = await ApiClient.inventory.getGroups();
+      if (res && res.success) {
+        _imgMap = buildImgMap(res.groups);
+        try {
+          sessionStorage.setItem(IMG_CACHE_KEY, JSON.stringify({ ts: Date.now(), map: _imgMap }));
+        } catch(e) {}
+      }
+    } catch(e) {}
+    return _imgMap;
+  })();
+  return _imgPromise;
+}
+
+function imgFor(it, map) {
+  if (!map || !map.u) return '';
+  function at(idx) { return (idx == null) ? '' : (map.u[idx] || ''); }
+  var bc = String(it.barcode || '').trim();
+  if (bc && map.b[bc] != null) return at(map.b[bc]);
+  var sk = String(it.skuCode || '').trim();
+  if (sk && map.s[sk] != null) return at(map.s[sk]);
+  var nm = String(it.name || '').trim(), op = normOpt(it.optName);
+  if (nm && op && map.no[nm + '\u0001' + op] != null) return at(map.no[nm + '\u0001' + op]);
+  if (nm && map.n[nm] != null) return at(map.n[nm]);
+  return '';
+}
+
+function fillDetailImages() {
+  var thumbs = document.querySelectorAll('#detailContent .it-thumb');
+  if (!thumbs.length) return;
+  loadImgMap().then(function(map) {
+    Array.prototype.forEach.call(thumbs, function(el) {
+      var url = imgFor({
+        barcode: el.getAttribute('data-bc'),
+        skuCode: el.getAttribute('data-sku'),
+        name: el.getAttribute('data-name'),
+        optName: el.getAttribute('data-opt')
+      }, map);
+      if (!url) return;
+      var img = el.querySelector('img');
+      img.onload = function() { el.classList.add('ok'); };
+      img.onerror = function() { el.classList.remove('ok'); };
+      img.src = url;
+      el.setAttribute('href', url);
+      el.setAttribute('target', '_blank');
+      el.setAttribute('rel', 'noopener');
+    });
+  });
 }
 
 function openEdit(orderNo, wasSent) {
